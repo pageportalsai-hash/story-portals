@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useLibrary } from '@/hooks/useStories';
 import { Header } from '@/components/Header';
 import { HeroSection } from '@/components/HeroSection';
+import { IntroSection } from '@/components/IntroSection';
 import { RowCarousel } from '@/components/RowCarousel';
 import { Footer } from '@/components/Footer';
 import { Loader2 } from 'lucide-react';
@@ -84,9 +85,14 @@ const Index = () => {
       {/* Hero Section */}
       <HeroSection story={categories.featured} />
 
+      {/* Intro Section */}
+      <IntroSection />
+
       {/* Content Rows */}
-      <main className="relative z-10 -mt-16 pb-8">
-        <RowCarousel title="Trending Now" stories={categories.trending} />
+      <main className="relative z-10 pb-8">
+        <div id="trending-now">
+          <RowCarousel title="Trending Now" stories={categories.trending} />
+        </div>
 
         {categories.sciFi.length > 0 && (
           <RowCarousel title="Science Fiction" stories={categories.sciFi} />

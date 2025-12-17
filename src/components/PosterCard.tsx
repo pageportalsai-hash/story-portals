@@ -105,8 +105,9 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
           />
         )}
 
-        {/* Gradient Overlay */}
+        {/* Gradient Overlay - enhanced bottom gradient for title readability */}
         <div className="absolute inset-0 card-overlay" />
+        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-background via-background/70 to-transparent pointer-events-none" />
 
         {/* Content Overlay */}
         <div
