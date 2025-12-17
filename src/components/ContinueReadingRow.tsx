@@ -35,7 +35,7 @@ export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
         {storiesWithProgress.map(({ story, progress }) => {
           const imagePath = story.posterImage.startsWith('/')
             ? `${BASE_PATH}${story.posterImage.slice(1)}`
-            : story.posterImage;
+            : `${BASE_PATH}stories/${story.slug}/${story.posterImage}`;
 
           return (
             <Link
