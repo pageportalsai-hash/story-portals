@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
 import { useLibrary } from '@/hooks/useStories';
 import { Header } from '@/components/Header';
-import { HeroSection } from '@/components/HeroSection';
-import { IntroSection } from '@/components/IntroSection';
+import { UnifiedHero } from '@/components/UnifiedHero';
 import { ContinueReadingRow } from '@/components/ContinueReadingRow';
 import { RowCarousel } from '@/components/RowCarousel';
 import { Footer } from '@/components/Footer';
@@ -83,11 +82,8 @@ const Index = () => {
       {/* Header */}
       <Header stories={stories} />
 
-      {/* Intro Section - First content under header */}
-      <IntroSection />
-
-      {/* Hero Section - Featured Story */}
-      <HeroSection story={categories.featured} />
+      {/* Unified Hero - Intro + Featured Story */}
+      <UnifiedHero story={categories.featured} />
 
       {/* Continue Reading Row - Only shows if localStorage has progress */}
       <ContinueReadingRow stories={stories} />
