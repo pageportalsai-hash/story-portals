@@ -2,6 +2,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { useStory, useLibrary, useStoryNavigation } from '@/hooks/useStories';
 import { ReadingProgress } from '@/components/ReadingProgress';
+import { useReadingProgressTracker } from '@/hooks/useReadingProgress';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import {
@@ -26,6 +27,9 @@ export default function StoryPage() {
   const { stories } = useLibrary();
   const { prevStory, nextStory } = useStoryNavigation(slug || '', stories);
   const [copied, setCopied] = useState(false);
+
+  // Track reading progress to localStorage
+  useReadingProgressTracker(slug);
 
   const handleCopyLink = async () => {
     try {
