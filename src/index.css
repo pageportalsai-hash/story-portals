@@ -144,7 +144,7 @@
     @apply fixed top-0 left-0 h-1 bg-primary z-50 transition-all duration-100;
   }
 
-  /* Prose styling for story content */
+  /* Prose styling for story content - dark theme */
   .prose-story {
     @apply prose prose-invert prose-lg max-w-none;
     @apply prose-headings:font-display prose-headings:text-foreground;
@@ -152,6 +152,16 @@
     @apply prose-a:text-primary prose-a:no-underline hover:prose-a:underline;
     @apply prose-strong:text-foreground;
     @apply prose-blockquote:border-l-primary prose-blockquote:text-muted-foreground;
+  }
+
+  /* Prose styling for story content - paper theme */
+  .prose-paper {
+    @apply prose prose-lg max-w-none;
+    @apply prose-headings:font-display prose-headings:text-stone-900;
+    @apply prose-p:text-stone-700 prose-p:leading-relaxed;
+    @apply prose-a:text-amber-700 prose-a:no-underline hover:prose-a:underline;
+    @apply prose-strong:text-stone-900;
+    @apply prose-blockquote:border-l-amber-500 prose-blockquote:text-stone-600;
   }
 
   /* Search input */
@@ -185,6 +195,21 @@
 
   .animate-scale-in {
     animation: scaleIn 0.3s ease-out forwards;
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 0.3s ease-out forwards;
+  }
+
+  @keyframes slideInRight {
+    from {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 
   @keyframes fadeIn {

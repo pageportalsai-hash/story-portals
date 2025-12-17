@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 export interface ReadingProgressData {
   slug: string;
   progress: number;
+  scrollPosition: number;
   lastRead: number;
 }
 
@@ -17,12 +18,13 @@ export function getReadingProgress(): Record<string, ReadingProgressData> {
   }
 }
 
-export function saveReadingProgress(slug: string, progress: number) {
+export function saveReadingProgress(slug: string, progress: number, scrollPosition: number) {
   try {
     const all = getReadingProgress();
     all[slug] = {
       slug,
       progress: Math.round(progress),
+      scrollPosition: Math.round(scrollPosition),
       lastRead: Date.now(),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
@@ -43,13 +45,18 @@ export function useReadingProgressTracker(slug: string | undefined) {
       
       // Only save if user has scrolled past 5%
       if (progress > 5) {
-        saveReadingProgress(slug, progress);
+        saveReadingProgress(slug, progress, scrollTop);
       }
     };
 
     window.addEventListener('scroll', updateProgress);
     return () => window.removeEventListener('scroll', updateProgress);
   }, [slug]);
+}
+
+export function getStoryScrollPosition(slug: string): number {
+  const all = getReadingProgress();
+  return all[slug]?.scrollPosition || 0;
 }
 
 export function useAllReadingProgress() {
