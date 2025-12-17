@@ -77,3 +77,13 @@ export function getStoryProgress(slug: string): number {
   const all = getReadingProgress();
   return all[slug]?.progress || 0;
 }
+
+export function clearStoryProgress(slug: string) {
+  try {
+    const all = getReadingProgress();
+    delete all[slug];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  } catch {
+    // localStorage unavailable
+  }
+}

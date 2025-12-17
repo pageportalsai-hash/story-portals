@@ -2,7 +2,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { useStory, useLibrary } from '@/hooks/useStories';
 import { ReadingProgress } from '@/components/ReadingProgress';
-import { useReadingProgressTracker, getStoryProgress, getStoryScrollPosition } from '@/hooks/useReadingProgress';
+import { useReadingProgressTracker, getStoryProgress, getStoryScrollPosition, clearStoryProgress } from '@/hooks/useReadingProgress';
 import { useReaderSettings } from '@/hooks/useReaderSettings';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -19,7 +19,7 @@ import {
   Calendar,
   PlayCircle,
 } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useLayoutEffect } from 'react';
 
 const BASE_PATH = import.meta.env.BASE_URL || '/';
 
@@ -35,6 +35,14 @@ export default function StoryPage() {
 
   // Track reading progress to localStorage
   useReadingProgressTracker(slug);
+
+  // Scroll to top before paint to prevent flash
+  useLayoutEffect(() => {
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    window.scrollTo(0, 0);
+  }, [slug]);
 
   // Check for existing progress on mount
   useEffect(() => {
@@ -53,6 +61,14 @@ export default function StoryPage() {
       window.scrollTo({ top: scrollPos, behavior: 'smooth' });
       setShowResumePrompt(false);
     }
+  }, [slug]);
+
+  const handleStartOver = useCallback(() => {
+    if (slug) {
+      clearStoryProgress(slug);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setShowResumePrompt(false);
   }, [slug]);
 
   const handleDismissResume = useCallback(() => {
@@ -126,7 +142,7 @@ export default function StoryPage() {
               Resume
             </button>
             <button
-              onClick={handleDismissResume}
+              onClick={handleStartOver}
               className="px-3 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               Start Over
