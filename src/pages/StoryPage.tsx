@@ -122,17 +122,42 @@ export default function StoryPage() {
     }
   }, [slug]);
 
-  const scrollReaderTo = useCallback((top: number, behavior: ScrollBehavior = 'smooth') => {
-    const el = readerPaneRef.current;
-    if (!el) return;
+  // Scroll helper that works immediately on load (waits for the pane + content to be ready)
+  const scrollReaderToWhenReady = useCallback(
+    (top: number, behavior: ScrollBehavior = 'smooth') => {
+      let frames = 0;
+      const maxFrames = 45;
 
-    // Ensure markdown/layout has been painted before restoring scroll
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        el.scrollTo({ top, behavior });
-      });
-    });
-  }, []);
+      const attempt = () => {
+        frames += 1;
+
+        const el = readerPaneRef.current;
+        if (!el) {
+          if (frames < maxFrames) requestAnimationFrame(attempt);
+          return;
+        }
+
+        const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
+
+        // If we need to restore a non-zero position, wait until markdown/layout creates scrollable height.
+        if (top > 0 && maxScroll <= 0 && frames < maxFrames) {
+          requestAnimationFrame(attempt);
+          return;
+        }
+
+        const clampedTop = Math.max(0, Math.min(top, maxScroll));
+
+        if (behavior === 'auto') {
+          el.scrollTop = clampedTop;
+        } else {
+          el.scrollTo({ top: clampedTop, behavior });
+        }
+      };
+
+      requestAnimationFrame(attempt);
+    },
+    []
+  );
 
   // If user clicked "Resume" from Home, auto-restore position once content is rendered
   useEffect(() => {
@@ -144,27 +169,22 @@ export default function StoryPage() {
     const scrollPos = getStoryScrollPosition(slug);
     if (scrollPos <= 0) return;
 
-    scrollReaderTo(scrollPos, 'auto');
+    scrollReaderToWhenReady(scrollPos, 'auto');
     setShowResumePrompt(false);
-  }, [content, location.state, scrollReaderTo, slug]);
+  }, [content, location.state, scrollReaderToWhenReady, slug]);
 
   const handleResume = useCallback(() => {
-    if (slug) {
-      const scrollPos = getStoryScrollPosition(slug);
-      scrollReaderTo(scrollPos, 'smooth');
-      setShowResumePrompt(false);
-    }
-  }, [slug, scrollReaderTo]);
+    if (!slug) return;
+    const scrollPos = getStoryScrollPosition(slug);
+    scrollReaderToWhenReady(scrollPos, 'smooth');
+    setShowResumePrompt(false);
+  }, [slug, scrollReaderToWhenReady]);
 
   const handleStartOver = useCallback(() => {
-    if (slug) {
-      clearStoryProgress(slug);
-    }
-    if (readerPaneRef.current) {
-      readerPaneRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    if (slug) clearStoryProgress(slug);
+    scrollReaderToWhenReady(0, 'smooth');
     setShowResumePrompt(false);
-  }, [slug]);
+  }, [slug, scrollReaderToWhenReady]);
 
   const handleCopyLink = async () => {
     try {
@@ -193,6 +213,9 @@ export default function StoryPage() {
   // Get font size and line width classes separately
   const fontSizeClass = settings.fontSize === 'S' ? 'text-base' : settings.fontSize === 'L' ? 'text-xl' : 'text-lg';
   const lineWidthClass = settings.lineWidth === 'narrow' ? 'max-w-xl' : settings.lineWidth === 'wide' ? 'max-w-3xl' : 'max-w-2xl';
+  const readerFramePaddingClass = settings.focusMode
+    ? 'py-2 sm:py-3 md:py-4'
+    : 'py-2 sm:py-3 md:py-3 lg:py-2';
 
   return (
     // Keep dark background always - paper theme only affects reader card
@@ -252,7 +275,7 @@ export default function StoryPage() {
 
         {/* Story Title Bar - below nav */}
         {!settings.focusMode && (
-          <div className="px-4 md:px-8 py-3 border-t border-border/50">
+          <div className="px-4 md:px-8 py-3">
             <div className="max-w-3xl mx-auto">
               <h1 className="font-display text-lg md:text-xl font-bold mb-1 line-clamp-1 text-foreground">
                 {story.title}
@@ -286,7 +309,7 @@ export default function StoryPage() {
       {/* Main Reader Area - flex-1 to fill remaining space */}
       <main className="flex-1 min-h-0 flex flex-col">
         {/* Reader Frame Container - clean, no border/outline */}
-        <div className="flex-1 min-h-0 flex justify-center px-2 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4">
+        <div className={`flex-1 min-h-0 flex justify-center px-2 sm:px-4 md:px-6 ${readerFramePaddingClass}`}>
           {/* Recessed Reader Frame - centered, constrained width */}
           <div
             ref={readerPaneRef}
@@ -338,7 +361,7 @@ export default function StoryPage() {
 
         {/* More Like This - Collapsible on mobile, always visible on desktop */}
         {stories.length > 1 && !settings.focusMode && (
-          <div className="flex-shrink-0 border-t border-border bg-background">
+          <div className="flex-shrink-0 bg-background">
             <MoreLikeThis 
               currentStory={story} 
               allStories={stories} 
@@ -353,24 +376,26 @@ export default function StoryPage() {
 
       {/* Resume Prompt */}
       {showResumePrompt && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 animate-slide-up px-4 w-full max-w-md">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg backdrop-blur-sm bg-card border border-border">
-            <PlayCircle size={20} className="text-primary flex-shrink-0" />
-            <span className="text-sm flex-1 text-foreground">
-              Resume from {savedProgress}%?
-            </span>
-            <button
-              onClick={handleResume}
-              className="px-3 py-1 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              Resume
-            </button>
-            <button
-              onClick={handleStartOver}
-              className="px-3 py-1 text-sm transition-colors text-muted-foreground hover:text-foreground"
-            >
-              Start Over
-            </button>
+        <div className="fixed inset-x-0 z-40 animate-slide-up px-4 bottom-[calc(env(safe-area-inset-bottom)+5rem)]">
+          <div className="mx-auto w-full max-w-md">
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg backdrop-blur-sm bg-card border border-border">
+              <PlayCircle size={20} className="text-primary flex-shrink-0" />
+              <span className="text-sm flex-1 text-foreground">
+                Resume from {savedProgress}%?
+              </span>
+              <button
+                onClick={handleResume}
+                className="px-3 py-1 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                Resume
+              </button>
+              <button
+                onClick={handleStartOver}
+                className="px-3 py-1 text-sm transition-colors text-muted-foreground hover:text-foreground"
+              >
+                Start Over
+              </button>
+            </div>
           </div>
         </div>
       )}
