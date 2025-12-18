@@ -26,6 +26,8 @@ Create:
 stories/
 your-new-slug/
 
+The best way to do this is to create a new file and put the folder name fist followed by a slash. it will create the folder and file together.
+
 ⸻
 
 3) Add poster assets (image + optional video)
