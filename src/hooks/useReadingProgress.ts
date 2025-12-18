@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, RefObject } from 'react';
 
 export interface ReadingProgressData {
   slug: string;
@@ -33,25 +33,40 @@ export function saveReadingProgress(slug: string, progress: number, scrollPositi
   }
 }
 
-export function useReadingProgressTracker(slug: string | undefined) {
+// Updated to track scroll inside a container element (reader pane)
+export function useReadingProgressTracker(
+  slug: string | undefined,
+  containerRef: RefObject<HTMLElement | null>
+) {
+  const [progress, setProgress] = useState(0);
+
   useEffect(() => {
     if (!slug) return;
 
+    const container = containerRef.current;
+    if (!container) return;
+
     const updateProgress = () => {
-      const scrollTop = window.scrollY;
-      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const scrollPercent = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
-      const progress = Math.min(100, Math.max(0, scrollPercent));
+      const scrollTop = container.scrollTop;
+      const scrollHeight = container.scrollHeight - container.clientHeight;
+      const scrollPercent = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+      const currentProgress = Math.min(100, Math.max(0, scrollPercent));
+      
+      setProgress(currentProgress);
       
       // Only save if user has scrolled past 5%
-      if (progress > 5) {
-        saveReadingProgress(slug, progress, scrollTop);
+      if (currentProgress > 5) {
+        saveReadingProgress(slug, currentProgress, scrollTop);
       }
     };
 
-    window.addEventListener('scroll', updateProgress);
-    return () => window.removeEventListener('scroll', updateProgress);
-  }, [slug]);
+    container.addEventListener('scroll', updateProgress);
+    updateProgress();
+    
+    return () => container.removeEventListener('scroll', updateProgress);
+  }, [slug, containerRef]);
+
+  return progress;
 }
 
 export function getStoryScrollPosition(slug: string): number {
