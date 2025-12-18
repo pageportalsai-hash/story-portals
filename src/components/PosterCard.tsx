@@ -87,11 +87,15 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
     return () => window.removeEventListener('scroll', handleScroll);
   }, [isPreviewing, stopPreview]);
 
-  // Cancel preview on outside click
+  // Cancel preview on outside click (but ignore if a dialog is open)
   useEffect(() => {
     if (!isPreviewing) return;
 
     const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      // Ignore clicks when a dialog/modal is open
+      if (document.querySelector('[role="dialog"][data-state="open"], [data-radix-dialog-content], [data-radix-alert-dialog-content]')) {
+        return;
+      }
       if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
         stopPreview();
       }
