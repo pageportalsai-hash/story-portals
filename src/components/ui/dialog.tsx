@@ -50,14 +50,15 @@ const DialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         "fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6",
+        "pt-[calc(env(safe-area-inset-top)+1rem)] pb-[calc(env(safe-area-inset-bottom)+1rem)]",
         className,
       )}
       {...props}
     >
-      <div className="relative w-full max-w-lg max-h-[85svh] overflow-y-auto rounded-lg border bg-background p-6 shadow-lg animate-in fade-in-0 zoom-in-95 duration-200">
+      <div className="relative w-[min(92vw,480px)] max-h-[85svh] overflow-y-auto rounded-lg border bg-background p-6 shadow-lg animate-in fade-in-0 zoom-in-95 duration-200">
         {children}
-        <DialogPrimitive.Close className="absolute right-3 top-3 z-10 rounded-full p-1.5 bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-          <X className="h-4 w-4" />
+        <DialogPrimitive.Close className="absolute right-3 top-3 z-10 rounded-full p-2 bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+          <X className="h-5 w-5" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
       </div>

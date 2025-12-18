@@ -44,22 +44,22 @@ export function AccountDropdown({ onSignOut }: AccountDropdownProps) {
     </Button>
   );
 
-  // Mobile: Use Drawer (bottom sheet)
+  // Mobile: Use Drawer (bottom sheet) with proper constraints
   if (isMobile) {
     return (
       <Drawer>
         <DrawerTrigger asChild>
           {triggerButton}
         </DrawerTrigger>
-        <DrawerContent className="bg-card border-border">
+        <DrawerContent className="bg-card border-border max-h-[70svh] pb-[env(safe-area-inset-bottom)]">
           <DrawerHeader className="relative">
             <DrawerTitle className="text-foreground">Account</DrawerTitle>
-            <DrawerClose className="absolute right-4 top-4 rounded-full p-1.5 bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-              <X className="h-4 w-4" />
+            <DrawerClose className="absolute right-4 top-4 rounded-full p-2 bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+              <X className="h-5 w-5" />
               <span className="sr-only">Close</span>
             </DrawerClose>
           </DrawerHeader>
-          <div className="px-4 pb-6">
+          <div className="px-4 pb-6 overflow-y-auto">
             <div className="flex flex-col space-y-1 mb-4">
               <p className="text-sm font-medium text-foreground">Guest User</p>
               <p className="text-xs text-muted-foreground">Sign in to sync your progress</p>
