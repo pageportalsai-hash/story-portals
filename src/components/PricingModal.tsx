@@ -44,7 +44,7 @@ export function PricingModal({ open, onOpenChange }: PricingModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-card border-border">
+      <DialogContent className="bg-card border-border [&>div]:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl text-foreground">Choose Your Portal Pass</DialogTitle>
           <DialogDescription className="text-muted-foreground">
