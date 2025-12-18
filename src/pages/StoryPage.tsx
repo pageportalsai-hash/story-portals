@@ -218,17 +218,15 @@ export default function StoryPage() {
 
       {/* Main Reader Area - flex-1 to fill remaining space */}
       <main className="flex-1 min-h-0 flex flex-col">
-        {/* Reader Frame Container - the background area */}
-        <div className={`flex-1 min-h-0 flex justify-center p-2 sm:p-4 md:p-6 ${
-          settings.theme === 'paper' ? 'bg-stone-200' : 'bg-muted/50'
-        }`}>
+        {/* Reader Frame Container - no grey stage, just centered card */}
+        <div className="flex-1 min-h-0 flex justify-center p-2 sm:p-4 md:p-6">
           {/* Recessed Reader Frame - centered, constrained width */}
           <div
             ref={readerPaneRef}
-            className={`reader-pane w-full max-w-3xl h-full overflow-y-auto rounded-xl shadow-lg ${
+            className={`reader-pane w-full max-w-3xl h-full overflow-y-auto rounded-xl shadow-xl ${
               settings.theme === 'paper' 
                 ? 'bg-amber-50 border border-stone-300 shadow-stone-400/30' 
-                : 'bg-card border border-border shadow-black/20'
+                : 'bg-card/95 border border-border/50 shadow-black/40'
             }`}
           >
             <article className={`px-5 sm:px-8 md:px-12 py-6 md:py-10 ${readerClasses}`}>
