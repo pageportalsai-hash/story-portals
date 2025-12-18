@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { useStory, useLibrary } from '@/hooks/useStories';
 import { ReadingProgress } from '@/components/ReadingProgress';
@@ -21,6 +21,7 @@ import {
 import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 
 export default function StoryPage() {
+  const location = useLocation();
   const { slug } = useParams<{ slug: string }>();
   const { story, content, loading, error } = useStory(slug || '');
   const { stories } = useLibrary();
@@ -52,20 +53,46 @@ export default function StoryPage() {
   useEffect(() => {
     if (slug) {
       const existingProgress = getStoryProgress(slug);
-      if (existingProgress > 5 && existingProgress < 95) {
+      if (existingProgress > 0 && existingProgress < 95) {
         setSavedProgress(existingProgress);
         setShowResumePrompt(true);
       }
     }
   }, [slug]);
 
+  // If user clicked "Resume" from Home, auto-restore position once content is rendered
+  useEffect(() => {
+    const wantsAutoResume = Boolean((location.state as any)?.resume);
+    if (!wantsAutoResume) return;
+    if (!slug) return;
+    if (!content) return;
+
+    const scrollPos = getStoryScrollPosition(slug);
+    if (scrollPos <= 0) return;
+
+    scrollReaderTo(scrollPos, 'auto');
+    setShowResumePrompt(false);
+  }, [content, location.state, scrollReaderTo, slug]);
+
+  const scrollReaderTo = useCallback((top: number, behavior: ScrollBehavior = 'smooth') => {
+    const el = readerPaneRef.current;
+    if (!el) return;
+
+    // Ensure markdown/layout has been painted before restoring scroll
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.scrollTo({ top, behavior });
+      });
+    });
+  }, []);
+
   const handleResume = useCallback(() => {
-    if (slug && readerPaneRef.current) {
+    if (slug) {
       const scrollPos = getStoryScrollPosition(slug);
-      readerPaneRef.current.scrollTo({ top: scrollPos, behavior: 'smooth' });
+      scrollReaderTo(scrollPos, 'smooth');
       setShowResumePrompt(false);
     }
-  }, [slug]);
+  }, [slug, scrollReaderTo]);
 
   const handleStartOver = useCallback(() => {
     if (slug) {
