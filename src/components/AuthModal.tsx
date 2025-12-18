@@ -23,7 +23,7 @@ export function AuthModal({ open, onOpenChange, onGuestSignIn }: AuthModalProps)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md bg-card border-border">
+      <DialogContent className="bg-card border-border [&>div]:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-center font-display text-2xl">Welcome to PagePortals</DialogTitle>
         </DialogHeader>
