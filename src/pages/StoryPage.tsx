@@ -16,6 +16,7 @@ import {
   User,
   Calendar,
   PlayCircle,
+  BookOpen,
 } from 'lucide-react';
 import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 
@@ -29,6 +30,7 @@ export default function StoryPage() {
   const [copied, setCopied] = useState(false);
   const [showResumePrompt, setShowResumePrompt] = useState(false);
   const [savedProgress, setSavedProgress] = useState(0);
+  const [moreLikeThisExpanded, setMoreLikeThisExpanded] = useState(false);
   
   // Ref for the reader pane (scrollable container)
   const readerPaneRef = useRef<HTMLDivElement>(null);
@@ -44,6 +46,8 @@ export default function StoryPage() {
     if (readerPaneRef.current) {
       readerPaneRef.current.scrollTop = 0;
     }
+    // Collapse "More like this" on story change
+    setMoreLikeThisExpanded(false);
   }, [slug]);
 
   // Check for existing progress on mount
@@ -99,10 +103,6 @@ export default function StoryPage() {
     return <StoryError stories={stories} type="not-found" />;
   }
 
-  const imagePath = story.posterImage.startsWith('/')
-    ? `${BASE_PATH}${story.posterImage.slice(1)}`
-    : `${BASE_PATH}stories/${story.slug}/${story.posterImage}`;
-
   const themeClasses = getThemeClasses();
   const readerClasses = getReaderClasses();
 
@@ -111,134 +111,136 @@ export default function StoryPage() {
       {/* Reading Progress Bar - fixed at top */}
       <ReadingProgress progress={progress} />
       
-      {/* Fixed Header Section */}
-      <header className={`flex-shrink-0 border-b ${
+      {/* Fixed Header with Branding */}
+      <header className={`flex-shrink-0 border-b pt-[env(safe-area-inset-top)] ${
         settings.theme === 'paper' ? 'border-stone-200 bg-amber-50' : 'border-border bg-background'
       }`}>
-        {/* Hero Banner - compact on desktop, hidden in focus mode */}
-        {!settings.focusMode && (
-          <div className="relative h-24 md:h-32 overflow-hidden">
-            <img
-              src={imagePath}
-              alt={story.title}
-              className="w-full h-full object-cover"
-            />
-            <div className={`absolute inset-0 ${
-              settings.theme === 'paper' 
-                ? 'bg-gradient-to-b from-amber-50/60 via-amber-50/80 to-amber-50' 
-                : 'bg-gradient-to-b from-background/60 via-background/80 to-background'
+        <div className="flex items-center justify-between px-4 md:px-8 h-14">
+          {/* Left: Logo + Back */}
+          <div className="flex items-center gap-4">
+            <Link
+              to="/"
+              className="flex items-center gap-2 text-foreground hover:text-primary transition-colors"
+            >
+              <BookOpen size={24} className="text-primary" />
+              <span className="font-display text-lg font-bold hidden sm:inline">
+                PagePortals
+              </span>
+            </Link>
+            
+            <span className={`hidden sm:block w-px h-6 ${
+              settings.theme === 'paper' ? 'bg-stone-300' : 'bg-border'
             }`} />
+            
+            <Link
+              to="/"
+              className={`flex items-center gap-1.5 text-sm transition-colors ${
+                settings.theme === 'paper' 
+                  ? 'text-stone-500 hover:text-stone-700' 
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <ArrowLeft size={16} />
+              <span className="hidden sm:inline">Back to Library</span>
+              <span className="sm:hidden">Back</span>
+            </Link>
           </div>
-        )}
 
-        {/* Title Bar */}
-        <div className={`px-4 md:px-8 py-4 ${settings.focusMode ? 'pt-6' : '-mt-12 md:-mt-16 relative z-10'}`}>
-          <div className="max-w-4xl mx-auto">
-            {/* Back Link - hidden in focus mode */}
-            {!settings.focusMode && (
-              <Link
-                to="/"
-                className={`inline-flex items-center gap-2 text-sm transition-colors mb-3 ${
-                  settings.theme === 'paper' 
-                    ? 'text-stone-500 hover:text-stone-700' 
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <ArrowLeft size={14} />
-                Library
-              </Link>
-            )}
-
-            {/* Title */}
-            <h1 className={`font-display text-2xl md:text-3xl lg:text-4xl font-bold mb-2 ${
-              settings.theme === 'paper' ? 'text-stone-900' : 'text-foreground'
-            }`}>
-              {story.title}
-            </h1>
-
-            {/* Meta Row */}
-            <div className="flex flex-wrap items-center gap-3 mb-3">
-              <span className="genre-chip text-xs">{story.genre}</span>
-              {story.year && (
-                <span className={`flex items-center gap-1 text-xs ${
-                  settings.theme === 'paper' ? 'text-stone-500' : 'text-muted-foreground'
-                }`}>
-                  <Calendar size={12} />
-                  {story.year}
-                </span>
+          {/* Right: Actions */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopyLink}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-colors ${
+                settings.theme === 'paper'
+                  ? 'bg-stone-200 text-stone-700 hover:bg-stone-300'
+                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+            >
+              {copied ? (
+                <>
+                  <Check size={12} className="text-green-500" />
+                  <span className="hidden sm:inline">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy size={12} />
+                  <span className="hidden sm:inline">Copy Link</span>
+                </>
               )}
-              {story.readingTimeMins && (
-                <span className={`flex items-center gap-1 text-xs ${
-                  settings.theme === 'paper' ? 'text-stone-500' : 'text-muted-foreground'
-                }`}>
-                  <Clock size={12} />
-                  {story.readingTimeMins} min
-                </span>
-              )}
-              {story.author && (
-                <span className={`flex items-center gap-1 text-xs ${
-                  settings.theme === 'paper' ? 'text-stone-500' : 'text-muted-foreground'
-                }`}>
-                  <User size={12} />
-                  {story.author}
-                </span>
-              )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={handleCopyLink}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-colors ${
-                  settings.theme === 'paper'
-                    ? 'bg-stone-200 text-stone-700 hover:bg-stone-300'
-                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                }`}
-              >
-                {copied ? (
-                  <>
-                    <Check size={12} className="text-green-500" />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy size={12} />
-                    Copy Link
-                  </>
-                )}
-              </button>
-              
-              <ReaderSettings settings={settings} onUpdate={updateSettings} />
-            </div>
+            </button>
+            
+            <ReaderSettings settings={settings} onUpdate={updateSettings} />
           </div>
         </div>
+
+        {/* Story Title Bar - below nav */}
+        {!settings.focusMode && (
+          <div className={`px-4 md:px-8 py-3 border-t ${
+            settings.theme === 'paper' ? 'border-stone-200/50' : 'border-border/50'
+          }`}>
+            <div className="max-w-3xl mx-auto">
+              <h1 className={`font-display text-lg md:text-xl font-bold mb-1 line-clamp-1 ${
+                settings.theme === 'paper' ? 'text-stone-900' : 'text-foreground'
+              }`}>
+                {story.title}
+              </h1>
+              <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                <span className="genre-chip text-xs">{story.genre}</span>
+                {story.year && (
+                  <span className={`flex items-center gap-1 text-xs ${
+                    settings.theme === 'paper' ? 'text-stone-500' : 'text-muted-foreground'
+                  }`}>
+                    <Calendar size={12} />
+                    {story.year}
+                  </span>
+                )}
+                {story.readingTimeMins && (
+                  <span className={`flex items-center gap-1 text-xs ${
+                    settings.theme === 'paper' ? 'text-stone-500' : 'text-muted-foreground'
+                  }`}>
+                    <Clock size={12} />
+                    {story.readingTimeMins} min
+                  </span>
+                )}
+                {story.author && (
+                  <span className={`hidden sm:flex items-center gap-1 text-xs ${
+                    settings.theme === 'paper' ? 'text-stone-500' : 'text-muted-foreground'
+                  }`}>
+                    <User size={12} />
+                    {story.author}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Reader Area - flex-1 to fill remaining space */}
       <main className="flex-1 min-h-0 flex flex-col">
-        {/* Reader Pane Container */}
-        <div className={`flex-1 min-h-0 p-2 md:p-4 ${
-          settings.theme === 'paper' ? 'bg-stone-100' : 'bg-muted/30'
+        {/* Reader Frame Container - the background area */}
+        <div className={`flex-1 min-h-0 flex justify-center p-2 sm:p-4 md:p-6 ${
+          settings.theme === 'paper' ? 'bg-stone-200' : 'bg-muted/50'
         }`}>
-          {/* Recessed Reader Pane */}
+          {/* Recessed Reader Frame - centered, constrained width */}
           <div
             ref={readerPaneRef}
-            className={`reader-pane h-full overflow-y-auto rounded-xl ${
+            className={`reader-pane w-full max-w-3xl h-full overflow-y-auto rounded-xl shadow-lg ${
               settings.theme === 'paper' 
-                ? 'bg-amber-50 shadow-inner border border-stone-200' 
-                : 'bg-card shadow-inner border border-border/50'
+                ? 'bg-amber-50 border border-stone-300 shadow-stone-400/30' 
+                : 'bg-card border border-border shadow-black/20'
             }`}
           >
-            <article className={`mx-auto px-6 md:px-12 py-8 ${readerClasses}`}>
+            <article className={`px-5 sm:px-8 md:px-12 py-6 md:py-10 ${readerClasses}`}>
               {/* Synopsis */}
-              <p className={`text-base md:text-lg italic border-l-4 border-primary pl-4 mb-8 ${
+              <p className={`text-base md:text-lg italic border-l-4 border-primary pl-4 mb-6 md:mb-8 ${
                 settings.theme === 'paper' ? 'text-stone-600' : 'text-muted-foreground'
               }`}>
                 {story.synopsis}
               </p>
 
               {/* Tags */}
-              <div className="flex flex-wrap gap-2 mb-8">
+              <div className="flex flex-wrap gap-2 mb-6 md:mb-8">
                 {story.tags.map((tag) => (
                   <span
                     key={tag}
@@ -260,36 +262,41 @@ export default function StoryPage() {
                 <ReactMarkdown>{content}</ReactMarkdown>
               </div>
 
-              {/* Bottom padding for "More like this" */}
-              <div className="h-8" />
+              {/* Bottom padding so last paragraphs aren't hidden */}
+              <div className="h-16 md:h-8" />
             </article>
           </div>
         </div>
 
-        {/* More Like This - Pinned to bottom */}
+        {/* More Like This - Collapsible on mobile, always visible on desktop */}
         {stories.length > 1 && !settings.focusMode && (
           <div className={`flex-shrink-0 border-t ${
             settings.theme === 'paper' 
               ? 'border-stone-200 bg-amber-50' 
               : 'border-border bg-background'
           }`}>
-            <div className="max-w-7xl mx-auto">
-              <MoreLikeThis currentStory={story} allStories={stories} compact />
-            </div>
+            <MoreLikeThis 
+              currentStory={story} 
+              allStories={stories} 
+              compact 
+              collapsible
+              expanded={moreLikeThisExpanded}
+              onToggle={() => setMoreLikeThisExpanded(!moreLikeThisExpanded)}
+            />
           </div>
         )}
       </main>
 
       {/* Resume Prompt */}
       {showResumePrompt && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 animate-slide-up">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 animate-slide-up px-4 w-full max-w-md">
           <div className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg backdrop-blur-sm ${
             settings.theme === 'paper'
               ? 'bg-stone-100 border border-stone-300'
               : 'bg-card border border-border'
           }`}>
-            <PlayCircle size={20} className="text-primary" />
-            <span className={`text-sm ${
+            <PlayCircle size={20} className="text-primary flex-shrink-0" />
+            <span className={`text-sm flex-1 ${
               settings.theme === 'paper' ? 'text-stone-700' : 'text-foreground'
             }`}>
               Resume from {savedProgress}%?
