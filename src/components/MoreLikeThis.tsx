@@ -1,18 +1,33 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { PosterCard } from './PosterCard';
 import { StoryMeta } from '@/types/story';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface MoreLikeThisProps {
   currentStory: StoryMeta;
   allStories: StoryMeta[];
   compact?: boolean;
+  collapsible?: boolean;
+  expanded?: boolean;
+  onToggle?: () => void;
 }
 
-export function MoreLikeThis({ currentStory, allStories, compact = false }: MoreLikeThisProps) {
+export function MoreLikeThis({ 
+  currentStory, 
+  allStories, 
+  compact = false,
+  collapsible = false,
+  expanded = true,
+  onToggle,
+}: MoreLikeThisProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const isMobile = useIsMobile();
+
+  // On mobile with collapsible, default to collapsed unless explicitly expanded
+  const isCollapsed = collapsible && isMobile && !expanded;
 
   const similarStories = useMemo(() => {
     // Filter out current story
@@ -69,7 +84,7 @@ export function MoreLikeThis({ currentStory, allStories, compact = false }: More
       }
       window.removeEventListener('resize', checkScrollButtons);
     };
-  }, [similarStories]);
+  }, [similarStories, expanded]);
 
   const scroll = (direction: 'left' | 'right') => {
     if (!scrollRef.current) return;
@@ -83,46 +98,63 @@ export function MoreLikeThis({ currentStory, allStories, compact = false }: More
   if (similarStories.length === 0) return null;
 
   return (
-    <section className={compact ? 'py-3 md:py-4' : 'py-8 md:py-12'}>
-      <h2 className={`font-display font-semibold text-foreground mb-3 px-4 md:px-8 ${
-        compact ? 'text-base md:text-lg' : 'text-xl md:text-2xl mb-6'
-      }`}>
-        More Like This
-      </h2>
+    <section className={compact ? 'py-2 md:py-4' : 'py-8 md:py-12'}>
+      {/* Header - clickable on mobile when collapsible */}
+      <button
+        onClick={collapsible && isMobile ? onToggle : undefined}
+        disabled={!collapsible || !isMobile}
+        className={`w-full flex items-center justify-between px-4 md:px-8 mb-2 ${
+          collapsible && isMobile ? 'cursor-pointer active:opacity-70' : 'cursor-default'
+        }`}
+      >
+        <h2 className={`font-display font-semibold text-foreground ${
+          compact ? 'text-sm md:text-lg' : 'text-xl md:text-2xl'
+        }`}>
+          More Like This
+        </h2>
+        {collapsible && isMobile && (
+          <span className="text-muted-foreground p-1">
+            {isCollapsed ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          </span>
+        )}
+      </button>
 
-      <div className="relative group">
-        {/* Left Chevron */}
-        <button
-          onClick={() => scroll('left')}
-          disabled={!canScrollLeft}
-          className="carousel-chevron left-2 md:left-4 opacity-0 group-hover:opacity-100"
-          aria-label="Scroll left"
-        >
-          <ChevronLeft size={compact ? 18 : 24} />
-        </button>
+      {/* Content - collapsible on mobile */}
+      {!isCollapsed && (
+        <div className="relative group">
+          {/* Left Chevron */}
+          <button
+            onClick={() => scroll('left')}
+            disabled={!canScrollLeft}
+            className="carousel-chevron left-2 md:left-4 opacity-0 group-hover:opacity-100"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft size={compact ? 18 : 24} />
+          </button>
 
-        {/* Scrollable Row */}
-        <div
-          ref={scrollRef}
-          className="carousel-row px-4 md:px-8"
-        >
-          {similarStories.map((story, index) => (
-            <div key={story.slug} className="carousel-item">
-              <PosterCard story={story} size="small" priority={index < 4} />
-            </div>
-          ))}
+          {/* Scrollable Row */}
+          <div
+            ref={scrollRef}
+            className="carousel-row px-4 md:px-8"
+          >
+            {similarStories.map((story, index) => (
+              <div key={story.slug} className="carousel-item">
+                <PosterCard story={story} size="small" priority={index < 4} />
+              </div>
+            ))}
+          </div>
+
+          {/* Right Chevron */}
+          <button
+            onClick={() => scroll('right')}
+            disabled={!canScrollRight}
+            className="carousel-chevron right-2 md:right-4 opacity-0 group-hover:opacity-100"
+            aria-label="Scroll right"
+          >
+            <ChevronRight size={compact ? 18 : 24} />
+          </button>
         </div>
-
-        {/* Right Chevron */}
-        <button
-          onClick={() => scroll('right')}
-          disabled={!canScrollRight}
-          className="carousel-chevron right-2 md:right-4 opacity-0 group-hover:opacity-100"
-          aria-label="Scroll right"
-        >
-          <ChevronRight size={compact ? 18 : 24} />
-        </button>
-      </div>
+      )}
     </section>
   );
 }
