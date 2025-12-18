@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export interface ReaderSettings {
   fontSize: 'S' | 'M' | 'L';
@@ -22,7 +22,6 @@ const defaultSettings: ReaderSettings = {
 
 export function useReaderSettings() {
   const [settings, setSettings] = useState<ReaderSettings>(defaultSettings);
-  const autoScrollRef = useRef<number | null>(null);
 
   // Load settings from localStorage
   useEffect(() => {
@@ -49,32 +48,7 @@ export function useReaderSettings() {
     });
   }, []);
 
-  // Auto-scroll logic
-  useEffect(() => {
-    if (settings.autoScroll) {
-      const speed = settings.autoScrollSpeed;
-      // Speed 1 = 0.5px per frame, Speed 10 = 5px per frame
-      const pixelsPerFrame = 0.5 + (speed - 1) * 0.5;
-
-      const scroll = () => {
-        window.scrollBy(0, pixelsPerFrame);
-        autoScrollRef.current = requestAnimationFrame(scroll);
-      };
-
-      autoScrollRef.current = requestAnimationFrame(scroll);
-    } else {
-      if (autoScrollRef.current) {
-        cancelAnimationFrame(autoScrollRef.current);
-        autoScrollRef.current = null;
-      }
-    }
-
-    return () => {
-      if (autoScrollRef.current) {
-        cancelAnimationFrame(autoScrollRef.current);
-      }
-    };
-  }, [settings.autoScroll, settings.autoScrollSpeed]);
+  // Auto-scroll logic is now handled in StoryPage where we have access to the reader pane ref
 
   // Get CSS classes based on settings
   const getReaderClasses = useCallback(() => {
