@@ -19,8 +19,9 @@ export function Header({ stories, showSearch = true }: HeaderProps) {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-b from-background via-background/80 to-transparent">
-        <div className="flex items-center justify-between px-4 md:px-12 py-4">
+      <header className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-b from-background via-background/80 to-transparent pt-[env(safe-area-inset-top)]">
+        {/* Main header bar - fixed height */}
+        <div className="flex items-center justify-between px-4 md:px-12 h-14 md:h-16">
           {/* Logo */}
           <Link
             to="/"
@@ -56,9 +57,9 @@ export function Header({ stories, showSearch = true }: HeaderProps) {
           </nav>
         </div>
 
-        {/* Mobile Search */}
+        {/* Mobile Search - fixed height */}
         {showSearch && (
-          <div className="md:hidden px-4 pb-4">
+          <div className="md:hidden px-4 pb-3 h-12">
             <SearchBar stories={stories} />
           </div>
         )}
