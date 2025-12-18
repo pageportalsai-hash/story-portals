@@ -2,7 +2,6 @@ import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { useStory, useLibrary } from '@/hooks/useStories';
 import { ReadingProgress } from '@/components/ReadingProgress';
-import { useReadingProgressTracker, getStoryProgress, getStoryScrollPosition, clearStoryProgress, saveReadingProgress } from '@/hooks/useReadingProgress';
 import { useReaderSettings } from '@/hooks/useReaderSettings';
 import { StorySkeleton } from '@/components/StorySkeleton';
 import { StoryError } from '@/components/StoryError';
@@ -29,6 +28,72 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 
+const LAST_READ_KEY = 'pageportals:lastRead';
+const PROGRESS_KEY_PREFIX = 'pageportals:progress:';
+
+type ProgressV2 = {
+  pct: number; // 0..1
+  scrollTop: number;
+  updatedAt: number;
+};
+
+type LastReadV2 = {
+  slug: string;
+  pct: number; // 0..1
+  updatedAt: number;
+  title?: string;
+  posterImage?: string;
+};
+
+function clamp01(n: number) {
+  return Math.min(1, Math.max(0, n));
+}
+
+function safeParseJSON<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function progressKey(slug: string) {
+  return `${PROGRESS_KEY_PREFIX}${slug}`;
+}
+
+function readProgressV2(slug: string): ProgressV2 | null {
+  if (typeof window === 'undefined') return null;
+  const parsed = safeParseJSON<ProgressV2>(localStorage.getItem(progressKey(slug)));
+  if (!parsed) return null;
+  if (typeof parsed.pct !== 'number' || typeof parsed.scrollTop !== 'number') return null;
+  return {
+    pct: clamp01(parsed.pct),
+    scrollTop: Math.max(0, parsed.scrollTop),
+    updatedAt: Number(parsed.updatedAt ?? 0),
+  };
+}
+
+function writeProgressV2(slug: string, data: ProgressV2, story?: { title?: string; posterImage?: string }) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(progressKey(slug), JSON.stringify(data));
+
+    const lastRead: LastReadV2 = {
+      slug,
+      pct: clamp01(data.pct),
+      updatedAt: data.updatedAt,
+      ...(story?.title ? { title: story.title } : {}),
+      ...(story?.posterImage ? { posterImage: story.posterImage } : {}),
+    };
+    localStorage.setItem(LAST_READ_KEY, JSON.stringify(lastRead));
+
+    window.dispatchEvent(new Event('pageportals:progress:updated'));
+  } catch {
+    // ignore
+  }
+}
+
 export default function StoryPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -36,23 +101,95 @@ export default function StoryPage() {
   const { story, content, loading, error } = useStory(slug || '');
   const { stories } = useLibrary();
   const { settings, updateSettings } = useReaderSettings();
+
   const [copied, setCopied] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
-  const [savedProgress, setSavedProgress] = useState(0);
+  const [savedProgress, setSavedProgress] = useState<ProgressV2 | null>(null);
   const [moreLikeThisExpanded, setMoreLikeThisExpanded] = useState(false);
   const [contentReady, setContentReady] = useState(false);
-  
-  // Ref for the reader pane (scrollable container)
-  const readerPaneRef = useRef<HTMLDivElement>(null);
+  const [progressPct, setProgressPct] = useState(0);
+
+  // Real scroll container
+  const readerRef = useRef<HTMLDivElement>(null);
+
+  // Scroll tracking throttles
+  const scrollRafRef = useRef<number | null>(null);
+  const lastPctRef = useRef(0);
+
+  // Debounced localStorage writes (~250ms)
+  const pendingWriteRef = useRef<ProgressV2 | null>(null);
+  const lastWriteAtRef = useRef(0);
+  const writeTimerRef = useRef<number | null>(null);
+
+  // Auto-scroll logic - scrolls the reader pane
   const autoScrollRef = useRef<number | null>(null);
   const userInteractedRef = useRef(false);
 
-  // Track reading progress using the reader pane scroll
-  const progress = useReadingProgressTracker(slug, readerPaneRef);
+  // Resume state for this mount
+  const resumeChoiceMadeRef = useRef(false);
+
+  const flushPendingWrite = useCallback(() => {
+    if (!slug) return;
+    const pending = pendingWriteRef.current;
+    if (!pending) return;
+
+    pendingWriteRef.current = null;
+    lastWriteAtRef.current = Date.now();
+    writeProgressV2(slug, pending, story ?? undefined);
+  }, [slug, story]);
+
+  const scheduleWrite = useCallback(
+    (next: ProgressV2) => {
+      pendingWriteRef.current = next;
+
+      const now = Date.now();
+      const elapsed = now - lastWriteAtRef.current;
+
+      // Only write if pct changes meaningfully
+      if (Math.abs(next.pct - lastPctRef.current) <= 0.002) return;
+
+      if (elapsed >= 250) {
+        flushPendingWrite();
+        return;
+      }
+
+      if (writeTimerRef.current != null) return;
+
+      writeTimerRef.current = window.setTimeout(() => {
+        writeTimerRef.current = null;
+        flushPendingWrite();
+      }, Math.max(0, 250 - elapsed));
+    },
+    [flushPendingWrite]
+  );
+
+  const handleScroll = useCallback(() => {
+    if (scrollRafRef.current != null) return;
+
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      const el = readerRef.current;
+      if (!el || !slug) return;
+
+      const max = el.scrollHeight - el.clientHeight;
+      const pct = max > 0 ? clamp01(el.scrollTop / max) : 0;
+
+      setProgressPct(pct);
+
+      const next: ProgressV2 = {
+        pct,
+        scrollTop: el.scrollTop,
+        updatedAt: Date.now(),
+      };
+
+      scheduleWrite(next);
+      lastPctRef.current = pct;
+    });
+  }, [scheduleWrite, slug]);
 
   // Auto-scroll logic - scrolls the reader pane
   useEffect(() => {
-    const el = readerPaneRef.current;
+    const el = readerRef.current;
     if (!el) return;
 
     // Stop any existing animation
@@ -115,102 +252,159 @@ export default function StoryPage() {
     if ('scrollRestoration' in history) {
       history.scrollRestoration = 'manual';
     }
-    if (readerPaneRef.current) {
-      readerPaneRef.current.scrollTop = 0;
+
+    // Reset per-mount flags
+    resumeChoiceMadeRef.current = false;
+    setShowResumeDialog(false);
+    setSavedProgress(null);
+    setProgressPct(0);
+    lastPctRef.current = 0;
+
+    // Cancel pending raf/timers
+    if (scrollRafRef.current != null) cancelAnimationFrame(scrollRafRef.current);
+    scrollRafRef.current = null;
+
+    if (writeTimerRef.current != null) window.clearTimeout(writeTimerRef.current);
+    writeTimerRef.current = null;
+    pendingWriteRef.current = null;
+
+    if (readerRef.current) {
+      readerRef.current.scrollTop = 0;
     }
+
     // Collapse "More like this" on story change
     setMoreLikeThisExpanded(false);
     setContentReady(false);
   }, [slug]);
 
-  // Mark content ready after markdown renders and wait for layout to stabilize
+  // Mark content ready after markdown renders (wait a few frames)
   useEffect(() => {
     if (!content) return;
-    
-    // Wait for layout to stabilize
+
     let frameCount = 0;
     const maxFrames = 15;
-    
+
     const waitForLayout = () => {
       frameCount++;
-      const el = readerPaneRef.current;
-      
+      const el = readerRef.current;
+
       if (el && el.scrollHeight > el.clientHeight) {
         setContentReady(true);
         return;
       }
-      
+
       if (frameCount < maxFrames) {
         requestAnimationFrame(waitForLayout);
       } else {
         setContentReady(true);
       }
     };
-    
+
     requestAnimationFrame(waitForLayout);
   }, [content]);
 
-  // Check for existing progress on mount - show dialog only if not auto-resuming
-  useEffect(() => {
-    if (!slug || !contentReady) return;
-    
-    const wantsAutoResume = Boolean((location.state as any)?.resume);
-    if (wantsAutoResume) return; // Don't show dialog if auto-resuming
-    
-    const existingProgress = getStoryProgress(slug);
-    if (existingProgress > 1 && existingProgress < 95) {
-      setSavedProgress(existingProgress);
-      setShowResumeDialog(true);
-    }
-  }, [slug, contentReady, location.state]);
+  const attemptRestoreToPct = useCallback((pct: number) => {
+    const targetPct = clamp01(pct);
 
-  // Scroll helper that reliably scrolls the reader pane
-  const scrollReaderTo = useCallback((scrollTop: number, behavior: ScrollBehavior = 'auto') => {
-    const el = readerPaneRef.current;
-    if (!el) return;
-    
-    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-    const clampedTop = Math.max(0, Math.min(scrollTop, maxScroll));
-    
-    if (behavior === 'auto') {
-      el.scrollTop = clampedTop;
-      // Force a second assignment to ensure it sticks
-      requestAnimationFrame(() => {
-        if (readerPaneRef.current) {
-          readerPaneRef.current.scrollTop = clampedTop;
-        }
-      });
-    } else {
-      el.scrollTo({ top: clampedTop, behavior });
-    }
+    let frames = 0;
+    let lastH = 0;
+    let stableFrames = 0;
+
+    const tick = () => {
+      frames++;
+      const el = readerRef.current;
+      if (!el) return;
+
+      const h = el.scrollHeight;
+      if (h === lastH) stableFrames++;
+      else stableFrames = 0;
+
+      lastH = h;
+
+      const ready = el.scrollHeight > el.clientHeight && stableFrames >= 2;
+      if (ready || frames >= 12) {
+        const max = Math.max(0, el.scrollHeight - el.clientHeight);
+        const top = targetPct * max;
+        el.scrollTo({ top, behavior: 'auto' });
+
+        // Second frame "stick" (Safari)
+        requestAnimationFrame(() => {
+          const el2 = readerRef.current;
+          if (!el2) return;
+          const max2 = Math.max(0, el2.scrollHeight - el2.clientHeight);
+          el2.scrollTop = targetPct * max2;
+        });
+        return;
+      }
+
+      requestAnimationFrame(tick);
+    };
+
+    requestAnimationFrame(tick);
   }, []);
 
-  // If user clicked "Resume" from Home with state, auto-restore position
+  // Restore resume popup + auto-resume from Continue Reading click
   useEffect(() => {
-    const wantsAutoResume = Boolean((location.state as any)?.resume);
-    if (!wantsAutoResume || !slug || !contentReady) return;
+    if (!slug || !contentReady) return;
 
-    const scrollPos = getStoryScrollPosition(slug);
-    if (scrollPos > 0) {
-      scrollReaderTo(scrollPos, 'auto');
+    const wantsAutoResume = Boolean((location.state as any)?.autoResume);
+    const saved = readProgressV2(slug);
+
+    setSavedProgress(saved);
+
+    if (resumeChoiceMadeRef.current) return;
+
+    if (wantsAutoResume && saved?.pct != null && saved.pct >= 0.01) {
+      resumeChoiceMadeRef.current = true;
+      attemptRestoreToPct(saved.pct);
+      setShowResumeDialog(false);
+
+      // Clear the navigation state to prevent re-triggering
+      navigate(location.pathname, { replace: true, state: {} });
+      return;
     }
-    
-    // Clear the navigation state to prevent re-triggering
-    navigate(location.pathname, { replace: true, state: {} });
-  }, [contentReady, location.state, location.pathname, navigate, scrollReaderTo, slug]);
+
+    if (saved && saved.pct >= 0.01 && saved.pct <= 0.99) {
+      setShowResumeDialog(true);
+    }
+  }, [attemptRestoreToPct, contentReady, location.pathname, location.state, navigate, slug]);
 
   const handleResume = useCallback(() => {
-    if (!slug) return;
-    const scrollPos = getStoryScrollPosition(slug);
-    scrollReaderTo(scrollPos, 'auto');
+    if (!savedProgress) return;
+    resumeChoiceMadeRef.current = true;
+    attemptRestoreToPct(savedProgress.pct);
     setShowResumeDialog(false);
-  }, [slug, scrollReaderTo]);
+  }, [attemptRestoreToPct, savedProgress]);
 
   const handleStartOver = useCallback(() => {
-    if (slug) clearStoryProgress(slug);
-    scrollReaderTo(0, 'auto');
+    if (!slug) return;
+    resumeChoiceMadeRef.current = true;
+
+    try {
+      localStorage.removeItem(progressKey(slug));
+      localStorage.setItem(
+        LAST_READ_KEY,
+        JSON.stringify({
+          slug,
+          pct: 0,
+          updatedAt: Date.now(),
+          ...(story?.title ? { title: story.title } : {}),
+          ...(story?.posterImage ? { posterImage: story.posterImage } : {}),
+        } satisfies LastReadV2)
+      );
+      window.dispatchEvent(new Event('pageportals:progress:updated'));
+    } catch {
+      // ignore
+    }
+
+    setSavedProgress(null);
+    setProgressPct(0);
+
+    const el = readerRef.current;
+    if (el) el.scrollTo({ top: 0, behavior: 'auto' });
+
     setShowResumeDialog(false);
-  }, [slug, scrollReaderTo]);
+  }, [slug, story?.posterImage, story?.title]);
 
   const handleCopyLink = async () => {
     try {
@@ -221,6 +415,27 @@ export default function StoryPage() {
       console.error('Failed to copy:', err);
     }
   };
+
+  // Final flush (best-effort)
+  useEffect(() => {
+    return () => {
+      if (!slug) return;
+
+      if (scrollRafRef.current != null) cancelAnimationFrame(scrollRafRef.current);
+      scrollRafRef.current = null;
+
+      if (writeTimerRef.current != null) window.clearTimeout(writeTimerRef.current);
+      writeTimerRef.current = null;
+
+      const el = readerRef.current;
+      if (!el) return;
+
+      const max = el.scrollHeight - el.clientHeight;
+      const pct = max > 0 ? clamp01(el.scrollTop / max) : 0;
+      const finalData: ProgressV2 = { pct, scrollTop: el.scrollTop, updatedAt: Date.now() };
+      writeProgressV2(slug, finalData, story ?? undefined);
+    };
+  }, [slug, story]);
 
   // Show skeleton immediately while loading
   if (loading) {
@@ -237,18 +452,32 @@ export default function StoryPage() {
   }
 
   // Get font size and line width classes separately
-  const fontSizeClass = settings.fontSize === 'S' ? 'text-base' : settings.fontSize === 'L' ? 'text-xl' : 'text-lg';
-  const lineWidthClass = settings.lineWidth === 'narrow' ? 'max-w-xl' : settings.lineWidth === 'wide' ? 'max-w-3xl' : 'max-w-2xl';
+  const fontSizeClass =
+    settings.fontSize === 'S'
+      ? 'text-base'
+      : settings.fontSize === 'L'
+        ? 'text-xl'
+        : 'text-lg';
+
+  const textColumnClass =
+    settings.lineWidth === 'narrow'
+      ? 'max-w-[900px]'
+      : settings.lineWidth === 'wide'
+        ? 'max-w-[1100px]'
+        : 'max-w-[1000px]';
+
   const readerFramePaddingClass = settings.focusMode
     ? 'py-2 sm:py-3 md:py-4'
     : 'py-2 sm:py-3 md:py-3 lg:py-2';
+
+  const savedPctLabel = savedProgress ? Math.round(savedProgress.pct * 100) : 0;
 
   return (
     // Keep dark background always - paper theme only affects reader card
     <div className="h-[100svh] flex flex-col overflow-hidden transition-colors duration-300 bg-background text-foreground">
       {/* Reading Progress Bar - fixed at top */}
-      <ReadingProgress progress={progress} />
-      
+      <ReadingProgress progress={progressPct * 100} />
+
       {/* Fixed Header with Branding */}
       <header className="flex-shrink-0 border-b pt-[env(safe-area-inset-top)] border-border bg-background">
         <div className="flex items-center justify-between px-4 md:px-8 h-14">
@@ -259,13 +488,11 @@ export default function StoryPage() {
               className="flex items-center gap-2 text-foreground hover:text-primary transition-colors"
             >
               <BookOpen size={24} className="text-primary" />
-              <span className="font-display text-lg font-bold hidden sm:inline">
-                PagePortals
-              </span>
+              <span className="font-display text-lg font-bold hidden sm:inline">PagePortals</span>
             </Link>
-            
+
             <span className="hidden sm:block w-px h-6 bg-border" />
-            
+
             <Link
               to="/"
               className="flex items-center gap-1.5 text-sm transition-colors text-muted-foreground hover:text-foreground"
@@ -294,7 +521,7 @@ export default function StoryPage() {
                 </>
               )}
             </button>
-            
+
             <ReaderSettings settings={settings} onUpdate={updateSettings} />
           </div>
         </div>
@@ -302,7 +529,7 @@ export default function StoryPage() {
         {/* Story Title Bar - below nav */}
         {!settings.focusMode && (
           <div className="px-4 md:px-8 py-3">
-            <div className="max-w-3xl mx-auto">
+            <div className="mx-auto w-full max-w-[1100px] lg:max-w-[1200px]">
               <h1 className="font-display text-lg md:text-xl font-bold mb-1 line-clamp-1 text-foreground">
                 {story.title}
               </h1>
@@ -336,26 +563,24 @@ export default function StoryPage() {
       <main className="flex-1 min-h-0 flex flex-col">
         {/* Reader Frame Container - clean, no border/outline */}
         <div className={`flex-1 min-h-0 flex justify-center px-2 sm:px-4 md:px-6 ${readerFramePaddingClass}`}>
-          {/* Recessed Reader Frame - centered, wider on desktop */}
-          {/* Normal mode: max-w-6xl for comfortable reading width */}
-          {/* Focus mode: max-w-4xl (tighter focus) */}
           <div
-            ref={readerPaneRef}
-            className={`reader-pane w-full h-full overflow-y-auto rounded-xl shadow-xl ${
-              settings.focusMode ? 'max-w-4xl' : 'max-w-6xl'
-            } ${
-              settings.theme === 'paper' 
-                ? 'bg-amber-50 border border-stone-300 shadow-stone-400/30' 
+            ref={readerRef}
+            onScroll={handleScroll}
+            className={`reader-pane w-full max-w-none h-full overflow-y-auto rounded-xl shadow-xl ${
+              settings.theme === 'paper'
+                ? 'bg-amber-50 border border-stone-300 shadow-stone-400/30'
                 : 'bg-card/95 border border-border/50 shadow-black/40'
             }`}
           >
             <article className="px-5 sm:px-8 md:px-12 lg:px-16 py-6 md:py-10">
-              {/* Inner content wrapper - controls line width */}
-              <div className={`mx-auto ${lineWidthClass}`}>
+              {/* Inner content wrapper - wider text column */}
+              <div className={`mx-auto w-full ${textColumnClass}`}>
                 {/* Synopsis */}
-                <p className={`italic border-l-4 border-primary pl-4 mb-6 md:mb-8 ${fontSizeClass} ${
-                  settings.theme === 'paper' ? 'text-stone-600' : 'text-muted-foreground'
-                }`}>
+                <p
+                  className={`italic border-l-4 border-primary pl-4 mb-6 md:mb-8 ${fontSizeClass} ${
+                    settings.theme === 'paper' ? 'text-stone-600' : 'text-muted-foreground'
+                  }`}
+                >
                   {story.synopsis}
                 </p>
 
@@ -365,8 +590,8 @@ export default function StoryPage() {
                     <span
                       key={tag}
                       className={`text-xs px-2 py-1 rounded ${
-                        settings.theme === 'paper' 
-                          ? 'text-stone-500 bg-stone-200/50' 
+                        settings.theme === 'paper'
+                          ? 'text-stone-500 bg-stone-200/50'
                           : 'text-muted-foreground bg-muted/50'
                       }`}
                     >
@@ -376,9 +601,11 @@ export default function StoryPage() {
                 </div>
 
                 {/* Story Content - font size applies here */}
-                <div className={`reader-content ${fontSizeClass} ${
-                  settings.theme === 'paper' ? 'prose-paper' : 'prose-story'
-                }`}>
+                <div
+                  className={`reader-content max-w-none ${fontSizeClass} ${
+                    settings.theme === 'paper' ? 'prose-paper' : 'prose-story'
+                  }`}
+                >
                   <ReactMarkdown>{content}</ReactMarkdown>
                 </div>
 
@@ -392,10 +619,10 @@ export default function StoryPage() {
         {/* More Like This - Collapsible on mobile, always visible on desktop */}
         {stories.length > 1 && !settings.focusMode && (
           <div className="flex-shrink-0 bg-background">
-            <MoreLikeThis 
-              currentStory={story} 
-              allStories={stories} 
-              compact 
+            <MoreLikeThis
+              currentStory={story}
+              allStories={stories}
+              compact
               collapsible
               expanded={moreLikeThisExpanded}
               onToggle={() => setMoreLikeThisExpanded(!moreLikeThisExpanded)}
@@ -406,17 +633,19 @@ export default function StoryPage() {
 
       {/* Resume Dialog - proper modal that works immediately */}
       <AlertDialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
-        <AlertDialogContent className="max-w-sm">
+        <AlertDialogContent
+          className="max-w-sm"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Continue Reading?</AlertDialogTitle>
             <AlertDialogDescription>
-              You were {savedProgress}% through this story. Would you like to pick up where you left off?
+              You were {savedPctLabel}% through this story. Would you like to pick up where you left off?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleStartOver}>
-              Start Over
-            </AlertDialogCancel>
+            <AlertDialogCancel onClick={handleStartOver}>Start Over</AlertDialogCancel>
             <AlertDialogAction onClick={handleResume} autoFocus>
               Resume
             </AlertDialogAction>

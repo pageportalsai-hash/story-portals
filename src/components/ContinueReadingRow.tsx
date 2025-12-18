@@ -4,25 +4,57 @@ import { Play } from 'lucide-react';
 import { StoryMeta } from '@/types/story';
 
 const BASE_PATH = import.meta.env.BASE_URL || '/';
-const STORAGE_KEY_V1 = 'pageportals:progress:v1';
+const LAST_READ_KEY = 'pageportals:lastRead';
+const PROGRESS_KEY_PREFIX = 'pageportals:progress:';
 
-type ProgressEntryV1 = {
-  percent?: number;
-  scrollTop?: number;
-  updatedAt?: number;
+type ProgressV2 = {
+  pct: number;
+  scrollTop: number;
+  updatedAt: number;
 };
 
-type ProgressMapV1 = Record<string, ProgressEntryV1>;
+type ProgressMapV2 = Record<string, ProgressV2>;
 
-function readProgressMapV1FromStorage(): ProgressMapV1 {
-  if (typeof window === 'undefined') return {};
+function safeParseJSON<T>(raw: string | null): T | null {
+  if (!raw) return null;
   try {
-    const stored = localStorage.getItem(STORAGE_KEY_V1);
-    if (!stored) return {};
-    return (JSON.parse(stored) ?? {}) as ProgressMapV1;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function readProgressMapV2FromStorage(): ProgressMapV2 {
+  if (typeof window === 'undefined') return {};
+
+  const map: ProgressMapV2 = {};
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+
+      // Ignore older map key
+      if (key === 'pageportals:progress:v1') continue;
+
+      if (!key.startsWith(PROGRESS_KEY_PREFIX)) continue;
+      const slug = key.slice(PROGRESS_KEY_PREFIX.length);
+      if (!slug) continue;
+
+      const parsed = safeParseJSON<ProgressV2>(localStorage.getItem(key));
+      if (!parsed || typeof parsed.pct !== 'number' || typeof parsed.scrollTop !== 'number') continue;
+
+      map[slug] = {
+        pct: Math.min(1, Math.max(0, parsed.pct)),
+        scrollTop: Math.max(0, parsed.scrollTop),
+        updatedAt: Number(parsed.updatedAt ?? 0),
+      };
+    }
   } catch {
     return {};
   }
+
+  return map;
 }
 
 interface ContinueReadingRowProps {
@@ -30,23 +62,20 @@ interface ContinueReadingRowProps {
 }
 
 export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
-  const [progressMap, setProgressMap] = useState<ProgressMapV1>({});
+  const [progressMap, setProgressMap] = useState<ProgressMapV2>({});
 
   useEffect(() => {
-    const refresh = () => setProgressMap(readProgressMapV1FromStorage());
+    const refresh = () => setProgressMap(readProgressMapV2FromStorage());
     refresh();
 
-    // Refresh when user returns to the tab (covers back/forward + bfcache-like behavior)
     const onVisibility = () => {
       if (document.visibilityState === 'visible') refresh();
     };
 
-    // Listen for custom event from StoryPage when progress updates
     const onProgressUpdate = () => refresh();
 
-    // Listen for storage event (cross-tab updates)
     const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY_V1) refresh();
+      if (e.key?.startsWith(PROGRESS_KEY_PREFIX) || e.key === LAST_READ_KEY) refresh();
     };
 
     document.addEventListener('visibilitychange', onVisibility);
@@ -66,11 +95,12 @@ export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
         const story = stories.find((s) => s.slug === slug);
         if (!story) return null;
 
-        const progress = Math.max(0, Math.min(100, Math.round(Number(entry?.percent ?? 0))));
+        const pct = Math.min(1, Math.max(0, Number(entry?.pct ?? 0)));
+        const progress = Math.max(0, Math.min(100, Math.round(pct * 100)));
         const lastRead = Number(entry?.updatedAt ?? 0);
 
-        // Requirement: show if percent > 0 AND percent < 100 (not finished)
-        if (progress <= 0 || progress >= 100) return null;
+        // Requirement: show if pct > 0.01 AND pct < 0.99 (not finished)
+        if (pct < 0.01 || pct > 0.99) return null;
 
         return { story, progress, lastRead };
       })
@@ -83,9 +113,7 @@ export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
 
   return (
     <section className="px-4 md:px-8 lg:px-12 py-6">
-      <h2 className="font-display text-xl md:text-2xl text-foreground mb-4">
-        Continue Reading
-      </h2>
+      <h2 className="font-display text-xl md:text-2xl text-foreground mb-4">Continue Reading</h2>
 
       <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory">
         {storiesWithProgress.map(({ story, progress }) => {
@@ -97,7 +125,7 @@ export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
             <Link
               key={story.slug}
               to={`/story/${story.slug}`}
-              state={{ resume: true }}
+              state={{ autoResume: true }}
               className="flex-shrink-0 group snap-start"
             >
               <div className="relative w-40 md:w-48 aspect-[2/3] rounded-lg overflow-hidden bg-muted">
@@ -113,17 +141,12 @@ export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
 
                 {/* Progress bar */}
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-muted/50">
-                  <div
-                    className="h-full bg-primary transition-all"
-                    style={{ width: `${progress}%` }}
-                  />
+                  <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
                 </div>
 
                 {/* Content */}
                 <div className="absolute bottom-0 left-0 right-0 p-3">
-                  <h3 className="font-display text-sm text-white line-clamp-2 mb-2">
-                    {story.title}
-                  </h3>
+                  <h3 className="font-display text-sm text-white line-clamp-2 mb-2">{story.title}</h3>
 
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-white/70">{progress}% complete</span>
@@ -141,4 +164,5 @@ export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
     </section>
   );
 }
+
 
