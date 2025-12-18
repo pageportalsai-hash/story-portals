@@ -33,9 +33,71 @@ export default function StoryPage() {
   
   // Ref for the reader pane (scrollable container)
   const readerPaneRef = useRef<HTMLDivElement>(null);
+  const autoScrollRef = useRef<number | null>(null);
+  const userInteractedRef = useRef(false);
 
   // Track reading progress using the reader pane scroll
   const progress = useReadingProgressTracker(slug, readerPaneRef);
+
+  // Auto-scroll logic - scrolls the reader pane
+  useEffect(() => {
+    const el = readerPaneRef.current;
+    if (!el) return;
+
+    // Stop any existing animation
+    if (autoScrollRef.current) {
+      cancelAnimationFrame(autoScrollRef.current);
+      autoScrollRef.current = null;
+    }
+
+    if (!settings.autoScroll) return;
+
+    // Speed 1 = 20px/sec, Speed 10 = 200px/sec
+    const pixelsPerSecond = 20 + (settings.autoScrollSpeed - 1) * 20;
+    let lastTime = performance.now();
+    userInteractedRef.current = false;
+
+    const scroll = (currentTime: number) => {
+      if (userInteractedRef.current) {
+        // User interacted, stop auto-scroll
+        updateSettings({ autoScroll: false });
+        return;
+      }
+
+      const deltaTime = (currentTime - lastTime) / 1000;
+      lastTime = currentTime;
+
+      const maxScroll = el.scrollHeight - el.clientHeight;
+      if (el.scrollTop >= maxScroll) {
+        // Reached the end, stop
+        updateSettings({ autoScroll: false });
+        return;
+      }
+
+      el.scrollTop += pixelsPerSecond * deltaTime;
+      autoScrollRef.current = requestAnimationFrame(scroll);
+    };
+
+    autoScrollRef.current = requestAnimationFrame(scroll);
+
+    // Pause on user interaction
+    const handleUserInteraction = () => {
+      userInteractedRef.current = true;
+    };
+
+    el.addEventListener('wheel', handleUserInteraction, { passive: true });
+    el.addEventListener('touchstart', handleUserInteraction, { passive: true });
+    el.addEventListener('mousedown', handleUserInteraction);
+
+    return () => {
+      if (autoScrollRef.current) {
+        cancelAnimationFrame(autoScrollRef.current);
+      }
+      el.removeEventListener('wheel', handleUserInteraction);
+      el.removeEventListener('touchstart', handleUserInteraction);
+      el.removeEventListener('mousedown', handleUserInteraction);
+    };
+  }, [settings.autoScroll, settings.autoScrollSpeed, updateSettings]);
 
   // Scroll reader pane to top on slug change
   useLayoutEffect(() => {
