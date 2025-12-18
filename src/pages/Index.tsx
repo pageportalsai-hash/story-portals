@@ -79,11 +79,13 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Header - includes spacer for fixed positioning */}
       <Header stories={stories} />
 
-      {/* Unified Hero - Intro + Featured Story */}
-      <UnifiedHero story={categories.featured} />
+      {/* Unified Hero - Intro + Featured Story (negative margin to overlap header spacer for cinematic effect) */}
+      <div className="-mt-[calc(env(safe-area-inset-top)+56px+48px)] md:-mt-[calc(env(safe-area-inset-top)+64px)]">
+        <UnifiedHero story={categories.featured} />
+      </div>
 
       {/* Continue Reading Row - Only shows if localStorage has progress */}
       <ContinueReadingRow stories={stories} />

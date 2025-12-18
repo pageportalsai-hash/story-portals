@@ -17,9 +17,25 @@ export function Header({ stories, showSearch = true }: HeaderProps) {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const { isGuest, signInAsGuest, signOut } = useUserState();
 
+  // Calculate header height for spacer: safe-area + main bar (56px) + mobile search (48px on mobile)
+  const headerHeight = 'calc(env(safe-area-inset-top) + 56px + 48px)';
+  const headerHeightDesktop = 'calc(env(safe-area-inset-top) + 64px)';
+
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-b from-background via-background/80 to-transparent pt-[env(safe-area-inset-top)]">
+      {/* Spacer to prevent content from hiding under fixed header */}
+      <div 
+        className="w-full md:hidden" 
+        style={{ height: headerHeight }} 
+        aria-hidden="true" 
+      />
+      <div 
+        className="hidden md:block w-full" 
+        style={{ height: headerHeightDesktop }} 
+        aria-hidden="true" 
+      />
+
+      <header className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-b from-background via-background/95 to-background/80 pt-[env(safe-area-inset-top)]">
         {/* Main header bar - fixed height */}
         <div className="flex items-center justify-between px-4 md:px-12 h-14 md:h-16">
           {/* Logo */}
