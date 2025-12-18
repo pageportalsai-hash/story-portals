@@ -6,9 +6,10 @@ import { StoryMeta } from '@/types/story';
 interface MoreLikeThisProps {
   currentStory: StoryMeta;
   allStories: StoryMeta[];
+  compact?: boolean;
 }
 
-export function MoreLikeThis({ currentStory, allStories }: MoreLikeThisProps) {
+export function MoreLikeThis({ currentStory, allStories, compact = false }: MoreLikeThisProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -82,26 +83,28 @@ export function MoreLikeThis({ currentStory, allStories }: MoreLikeThisProps) {
   if (similarStories.length === 0) return null;
 
   return (
-    <section className="py-8 md:py-12">
-      <h2 className="font-display text-xl md:text-2xl font-semibold text-foreground mb-6">
+    <section className={compact ? 'py-3 md:py-4' : 'py-8 md:py-12'}>
+      <h2 className={`font-display font-semibold text-foreground mb-3 px-4 md:px-8 ${
+        compact ? 'text-base md:text-lg' : 'text-xl md:text-2xl mb-6'
+      }`}>
         More Like This
       </h2>
 
-      <div className="relative group -mx-4 md:mx-0">
+      <div className="relative group">
         {/* Left Chevron */}
         <button
           onClick={() => scroll('left')}
           disabled={!canScrollLeft}
-          className="carousel-chevron left-2 md:left-0 opacity-0 group-hover:opacity-100"
+          className="carousel-chevron left-2 md:left-4 opacity-0 group-hover:opacity-100"
           aria-label="Scroll left"
         >
-          <ChevronLeft size={24} />
+          <ChevronLeft size={compact ? 18 : 24} />
         </button>
 
         {/* Scrollable Row */}
         <div
           ref={scrollRef}
-          className="carousel-row px-4 md:px-0"
+          className="carousel-row px-4 md:px-8"
         >
           {similarStories.map((story, index) => (
             <div key={story.slug} className="carousel-item">
@@ -114,10 +117,10 @@ export function MoreLikeThis({ currentStory, allStories }: MoreLikeThisProps) {
         <button
           onClick={() => scroll('right')}
           disabled={!canScrollRight}
-          className="carousel-chevron right-2 md:right-0 opacity-0 group-hover:opacity-100"
+          className="carousel-chevron right-2 md:right-4 opacity-0 group-hover:opacity-100"
           aria-label="Scroll right"
         >
-          <ChevronRight size={24} />
+          <ChevronRight size={compact ? 18 : 24} />
         </button>
       </div>
     </section>
