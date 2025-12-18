@@ -19,15 +19,21 @@ const BASE_PATH = import.meta.env.BASE_URL || '/';
 export function MobilePreviewDrawer({ story, open, onOpenChange }: MobilePreviewDrawerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Respect prefers-reduced-motion
+  const prefersReducedMotion = typeof window !== 'undefined' 
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   useEffect(() => {
-    if (open && videoRef.current && story?.posterVideo) {
+    if (!videoRef.current) return;
+    
+    if (open && story?.posterVideo && !prefersReducedMotion) {
       videoRef.current.play().catch(() => {});
     }
-    if (!open && videoRef.current) {
+    if (!open) {
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
     }
-  }, [open, story?.posterVideo]);
+  }, [open, story?.posterVideo, prefersReducedMotion]);
 
   if (!story) return null;
 
