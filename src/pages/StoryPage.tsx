@@ -60,6 +60,18 @@ export default function StoryPage() {
     }
   }, [slug]);
 
+  const scrollReaderTo = useCallback((top: number, behavior: ScrollBehavior = 'smooth') => {
+    const el = readerPaneRef.current;
+    if (!el) return;
+
+    // Ensure markdown/layout has been painted before restoring scroll
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.scrollTo({ top, behavior });
+      });
+    });
+  }, []);
+
   // If user clicked "Resume" from Home, auto-restore position once content is rendered
   useEffect(() => {
     const wantsAutoResume = Boolean((location.state as any)?.resume);
@@ -73,18 +85,6 @@ export default function StoryPage() {
     scrollReaderTo(scrollPos, 'auto');
     setShowResumePrompt(false);
   }, [content, location.state, scrollReaderTo, slug]);
-
-  const scrollReaderTo = useCallback((top: number, behavior: ScrollBehavior = 'smooth') => {
-    const el = readerPaneRef.current;
-    if (!el) return;
-
-    // Ensure markdown/layout has been painted before restoring scroll
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        el.scrollTo({ top, behavior });
-      });
-    });
-  }, []);
 
   const handleResume = useCallback(() => {
     if (slug) {
