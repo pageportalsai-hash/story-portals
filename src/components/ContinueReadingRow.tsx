@@ -41,6 +41,7 @@ export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
             <Link
               key={story.slug}
               to={`/story/${story.slug}`}
+              state={{ resume: true }}
               className="flex-shrink-0 group snap-start"
             >
               <div className="relative w-40 md:w-48 aspect-[2/3] rounded-lg overflow-hidden bg-muted">
