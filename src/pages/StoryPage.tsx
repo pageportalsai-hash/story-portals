@@ -1,13 +1,23 @@
-import { useParams, Link, useLocation } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { useStory, useLibrary } from '@/hooks/useStories';
 import { ReadingProgress } from '@/components/ReadingProgress';
-import { useReadingProgressTracker, getStoryProgress, getStoryScrollPosition, clearStoryProgress } from '@/hooks/useReadingProgress';
+import { useReadingProgressTracker, getStoryProgress, getStoryScrollPosition, clearStoryProgress, saveReadingProgress } from '@/hooks/useReadingProgress';
 import { useReaderSettings } from '@/hooks/useReaderSettings';
 import { StorySkeleton } from '@/components/StorySkeleton';
 import { StoryError } from '@/components/StoryError';
 import { ReaderSettings } from '@/components/ReaderSettings';
 import { MoreLikeThis } from '@/components/MoreLikeThis';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import {
   ArrowLeft,
   Copy,
@@ -15,21 +25,22 @@ import {
   Clock,
   User,
   Calendar,
-  PlayCircle,
   BookOpen,
 } from 'lucide-react';
 import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 
 export default function StoryPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
   const { story, content, loading, error } = useStory(slug || '');
   const { stories } = useLibrary();
   const { settings, updateSettings } = useReaderSettings();
   const [copied, setCopied] = useState(false);
-  const [showResumePrompt, setShowResumePrompt] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [savedProgress, setSavedProgress] = useState(0);
   const [moreLikeThisExpanded, setMoreLikeThisExpanded] = useState(false);
+  const [contentReady, setContentReady] = useState(false);
   
   // Ref for the reader pane (scrollable container)
   const readerPaneRef = useRef<HTMLDivElement>(null);
@@ -109,82 +120,97 @@ export default function StoryPage() {
     }
     // Collapse "More like this" on story change
     setMoreLikeThisExpanded(false);
+    setContentReady(false);
   }, [slug]);
 
-  // Check for existing progress on mount
+  // Mark content ready after markdown renders and wait for layout to stabilize
   useEffect(() => {
-    if (slug) {
-      const existingProgress = getStoryProgress(slug);
-      if (existingProgress > 0 && existingProgress < 95) {
-        setSavedProgress(existingProgress);
-        setShowResumePrompt(true);
+    if (!content) return;
+    
+    // Wait for layout to stabilize
+    let frameCount = 0;
+    const maxFrames = 15;
+    
+    const waitForLayout = () => {
+      frameCount++;
+      const el = readerPaneRef.current;
+      
+      if (el && el.scrollHeight > el.clientHeight) {
+        setContentReady(true);
+        return;
       }
+      
+      if (frameCount < maxFrames) {
+        requestAnimationFrame(waitForLayout);
+      } else {
+        setContentReady(true);
+      }
+    };
+    
+    requestAnimationFrame(waitForLayout);
+  }, [content]);
+
+  // Check for existing progress on mount - show dialog only if not auto-resuming
+  useEffect(() => {
+    if (!slug || !contentReady) return;
+    
+    const wantsAutoResume = Boolean((location.state as any)?.resume);
+    if (wantsAutoResume) return; // Don't show dialog if auto-resuming
+    
+    const existingProgress = getStoryProgress(slug);
+    if (existingProgress > 1 && existingProgress < 95) {
+      setSavedProgress(existingProgress);
+      setShowResumeDialog(true);
     }
-  }, [slug]);
+  }, [slug, contentReady, location.state]);
 
-  // Scroll helper that works immediately on load (waits for the pane + content to be ready)
-  const scrollReaderToWhenReady = useCallback(
-    (top: number, behavior: ScrollBehavior = 'smooth') => {
-      let frames = 0;
-      const maxFrames = 45;
-
-      const attempt = () => {
-        frames += 1;
-
-        const el = readerPaneRef.current;
-        if (!el) {
-          if (frames < maxFrames) requestAnimationFrame(attempt);
-          return;
+  // Scroll helper that reliably scrolls the reader pane
+  const scrollReaderTo = useCallback((scrollTop: number, behavior: ScrollBehavior = 'auto') => {
+    const el = readerPaneRef.current;
+    if (!el) return;
+    
+    const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
+    const clampedTop = Math.max(0, Math.min(scrollTop, maxScroll));
+    
+    if (behavior === 'auto') {
+      el.scrollTop = clampedTop;
+      // Force a second assignment to ensure it sticks
+      requestAnimationFrame(() => {
+        if (readerPaneRef.current) {
+          readerPaneRef.current.scrollTop = clampedTop;
         }
+      });
+    } else {
+      el.scrollTo({ top: clampedTop, behavior });
+    }
+  }, []);
 
-        const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-
-        // If we need to restore a non-zero position, wait until markdown/layout creates scrollable height.
-        if (top > 0 && maxScroll <= 0 && frames < maxFrames) {
-          requestAnimationFrame(attempt);
-          return;
-        }
-
-        const clampedTop = Math.max(0, Math.min(top, maxScroll));
-
-        if (behavior === 'auto') {
-          el.scrollTop = clampedTop;
-        } else {
-          el.scrollTo({ top: clampedTop, behavior });
-        }
-      };
-
-      requestAnimationFrame(attempt);
-    },
-    []
-  );
-
-  // If user clicked "Resume" from Home, auto-restore position once content is rendered
+  // If user clicked "Resume" from Home with state, auto-restore position
   useEffect(() => {
     const wantsAutoResume = Boolean((location.state as any)?.resume);
-    if (!wantsAutoResume) return;
-    if (!slug) return;
-    if (!content) return;
+    if (!wantsAutoResume || !slug || !contentReady) return;
 
     const scrollPos = getStoryScrollPosition(slug);
-    if (scrollPos <= 0) return;
-
-    scrollReaderToWhenReady(scrollPos, 'auto');
-    setShowResumePrompt(false);
-  }, [content, location.state, scrollReaderToWhenReady, slug]);
+    if (scrollPos > 0) {
+      scrollReaderTo(scrollPos, 'auto');
+    }
+    
+    // Clear the navigation state to prevent re-triggering
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [contentReady, location.state, location.pathname, navigate, scrollReaderTo, slug]);
 
   const handleResume = useCallback(() => {
     if (!slug) return;
     const scrollPos = getStoryScrollPosition(slug);
-    scrollReaderToWhenReady(scrollPos, 'smooth');
-    setShowResumePrompt(false);
-  }, [slug, scrollReaderToWhenReady]);
+    scrollReaderTo(scrollPos, 'auto');
+    setShowResumeDialog(false);
+  }, [slug, scrollReaderTo]);
 
   const handleStartOver = useCallback(() => {
     if (slug) clearStoryProgress(slug);
-    scrollReaderToWhenReady(0, 'smooth');
-    setShowResumePrompt(false);
-  }, [slug, scrollReaderToWhenReady]);
+    scrollReaderTo(0, 'auto');
+    setShowResumeDialog(false);
+  }, [slug, scrollReaderTo]);
 
   const handleCopyLink = async () => {
     try {
@@ -310,20 +336,20 @@ export default function StoryPage() {
       <main className="flex-1 min-h-0 flex flex-col">
         {/* Reader Frame Container - clean, no border/outline */}
         <div className={`flex-1 min-h-0 flex justify-center px-2 sm:px-4 md:px-6 ${readerFramePaddingClass}`}>
-          {/* Recessed Reader Frame - centered, constrained width */}
-          {/* Normal mode: max-w-4xl on desktop for more comfortable reading width */}
-          {/* Focus mode: max-w-3xl (tighter focus) */}
+          {/* Recessed Reader Frame - centered, wider on desktop */}
+          {/* Normal mode: max-w-6xl for comfortable reading width */}
+          {/* Focus mode: max-w-4xl (tighter focus) */}
           <div
             ref={readerPaneRef}
             className={`reader-pane w-full h-full overflow-y-auto rounded-xl shadow-xl ${
-              settings.focusMode ? 'max-w-3xl' : 'max-w-4xl'
+              settings.focusMode ? 'max-w-4xl' : 'max-w-6xl'
             } ${
               settings.theme === 'paper' 
                 ? 'bg-amber-50 border border-stone-300 shadow-stone-400/30' 
                 : 'bg-card/95 border border-border/50 shadow-black/40'
             }`}
           >
-            <article className="px-5 sm:px-8 md:px-12 py-6 md:py-10">
+            <article className="px-5 sm:px-8 md:px-12 lg:px-16 py-6 md:py-10">
               {/* Inner content wrapper - controls line width */}
               <div className={`mx-auto ${lineWidthClass}`}>
                 {/* Synopsis */}
@@ -378,31 +404,25 @@ export default function StoryPage() {
         )}
       </main>
 
-      {/* Resume Prompt */}
-      {showResumePrompt && (
-        <div className="fixed inset-x-0 z-40 animate-slide-up px-4 bottom-[calc(env(safe-area-inset-bottom)+5rem)]">
-          <div className="mx-auto w-full max-w-md">
-            <div className="flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg backdrop-blur-sm bg-card border border-border">
-              <PlayCircle size={20} className="text-primary flex-shrink-0" />
-              <span className="text-sm flex-1 text-foreground">
-                Resume from {savedProgress}%?
-              </span>
-              <button
-                onClick={handleResume}
-                className="px-3 py-1 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-              >
-                Resume
-              </button>
-              <button
-                onClick={handleStartOver}
-                className="px-3 py-1 text-sm transition-colors text-muted-foreground hover:text-foreground"
-              >
-                Start Over
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Resume Dialog - proper modal that works immediately */}
+      <AlertDialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Continue Reading?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You were {savedProgress}% through this story. Would you like to pick up where you left off?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleStartOver}>
+              Start Over
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleResume} autoFocus>
+              Resume
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
