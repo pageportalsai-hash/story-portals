@@ -40,8 +40,24 @@ export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
     const onVisibility = () => {
       if (document.visibilityState === 'visible') refresh();
     };
+
+    // Listen for custom event from StoryPage when progress updates
+    const onProgressUpdate = () => refresh();
+
+    // Listen for storage event (cross-tab updates)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY_V1) refresh();
+    };
+
     document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pageportals:progress:updated', onProgressUpdate);
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pageportals:progress:updated', onProgressUpdate);
+      window.removeEventListener('storage', onStorage);
+    };
   }, []);
 
   const storiesWithProgress = useMemo(() => {
@@ -53,8 +69,8 @@ export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
         const progress = Math.max(0, Math.min(100, Math.round(Number(entry?.percent ?? 0))));
         const lastRead = Number(entry?.updatedAt ?? 0);
 
-        // Requirement: show if any story has percent > 0
-        if (progress <= 0) return null;
+        // Requirement: show if percent > 0 AND percent < 100 (not finished)
+        if (progress <= 0 || progress >= 100) return null;
 
         return { story, progress, lastRead };
       })

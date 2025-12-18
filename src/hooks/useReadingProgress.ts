@@ -79,6 +79,11 @@ export function saveReadingProgress(slug: string, percent: number, scrollTop: nu
     updatedAt: Date.now(),
   };
   writeProgressMapV1(all);
+  
+  // Dispatch custom event so ContinueReadingRow updates immediately
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('pageportals:progress:updated'));
+  }
 }
 
 export function getStoryProgress(slug: string): number {

@@ -311,9 +311,13 @@ export default function StoryPage() {
         {/* Reader Frame Container - clean, no border/outline */}
         <div className={`flex-1 min-h-0 flex justify-center px-2 sm:px-4 md:px-6 ${readerFramePaddingClass}`}>
           {/* Recessed Reader Frame - centered, constrained width */}
+          {/* Normal mode: max-w-4xl on desktop for more comfortable reading width */}
+          {/* Focus mode: max-w-3xl (tighter focus) */}
           <div
             ref={readerPaneRef}
-            className={`reader-pane w-full max-w-3xl h-full overflow-y-auto rounded-xl shadow-xl ${
+            className={`reader-pane w-full h-full overflow-y-auto rounded-xl shadow-xl ${
+              settings.focusMode ? 'max-w-3xl' : 'max-w-4xl'
+            } ${
               settings.theme === 'paper' 
                 ? 'bg-amber-50 border border-stone-300 shadow-stone-400/30' 
                 : 'bg-card/95 border border-border/50 shadow-black/40'
