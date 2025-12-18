@@ -28,7 +28,10 @@ export function UnifiedHero({ story }: UnifiedHeroProps) {
 
   return (
     <>
-      <section className="relative min-h-[90vh] md:min-h-screen w-full overflow-hidden">
+      {/* Spacer for fixed header - accounts for header height + safe area */}
+      <div className="h-[calc(3.5rem+env(safe-area-inset-top)+3rem)] md:h-[calc(4rem+env(safe-area-inset-top))]" />
+      
+      <section className="relative min-h-[calc(90vh-7rem)] md:min-h-[calc(100vh-4rem)] w-full overflow-hidden -mt-[calc(3.5rem+env(safe-area-inset-top)+3rem)] md:-mt-[calc(4rem+env(safe-area-inset-top))]">
         {/* Background Image */}
         <div className="absolute inset-0">
           <img
@@ -42,8 +45,8 @@ export function UnifiedHero({ story }: UnifiedHeroProps) {
           <div className="absolute inset-0 bg-background/30" />
         </div>
 
-        {/* Content Container */}
-        <div className="relative h-full flex flex-col justify-center items-center pt-20 md:pt-24 px-4 md:px-12">
+        {/* Content Container - extra top padding on mobile for header+search */}
+        <div className="relative h-full flex flex-col justify-center items-center pt-[calc(6rem+env(safe-area-inset-top))] md:pt-24 px-4 md:px-12">
           {/* Intro Block - Centered Primary Hero */}
           <div className="max-w-3xl text-center mb-16 md:mb-20">
             <h2 className="font-display text-3xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6 animate-fade-in">
