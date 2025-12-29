@@ -628,40 +628,4 @@ She returned to the archive and opened a new ledger. She titled it **Mercy Route
 
 She smiled, knowing the ring could keep spinning and still make room for kindness.
 
-## Continuity Notes (StoryForge)
-
-### Chapter Recaps
-- Ch 1: Archivist Ilya Nadir discovers a wrong loop on a reprinting map in the Archive of Deeds, meets cartographer rival Rhea Quill, and files a notice as the ring’s silence begins to crack.
-- Ch 2: Ilya and Rhea open a hidden hatch and find the sealed REMETRIX corridor; the terminal asks “Who owes whom?” and locks behind them, hinting at a debt-linked route.
-- Ch 3: Ilya learns her family’s debt is tied to the sealed corridor, receives her grandmother’s lantern receipt, and discovers her grandmother embedded reprint routines in Mapworks.
-- Ch 4: The pair follow the Quiet Route and meet mediator Harin, learning the corridor was sealed to protect uncounted travelers and that names were scratched out to keep them safe.
-- Ch 5: Ilya deciphers the ledger’s hidden line—“Debt in lieu of passage”—and uncovers a network of intentional map lies keyed to names and mercy routes.
-- Ch 6: Lantern maker Viro explains the Lantern Circle’s mission; Ilya receives a council summons and recognizes the lantern seal’s significance.
-- Ch 7: In council inquiry, Ilya refuses to give names, learns the council already suspects the corridor, and vows to balance the ledger without betraying the route.
-- Ch 8: Ilya chooses to alter the map to mark the corridor as a hazard, forges a ledger entry discharging her debt via maintenance of the Quiet Route, and accepts the risk.
-- Ch 9: The council inspects and stamps the hazard closure; Tamsin quietly acknowledges the altered ledger while the Quiet Route stays open in practice.
-- Ch 10: Ilya records hidden stories of travelers, Rhea helps mask usage patterns, and the council flags Ilya’s debt entry for review.
-- Ch 11: At the hearing, Ilya confesses the map is lying on purpose, presents names as acknowledgment, and declares the debt paid through mercy maintenance.
-- Ch 12: The council recognizes the Quiet Route as a historic mercy corridor, discharges Ilya’s debt, and establishes Lantern Circle stewardship while the map continues to lie in service of protection.
-
-### Character States
-- Ilya Nadir — archivist — safeguard mercy routes while honoring the record — fear of betraying vulnerable communities — secret of forged ledger entry — status: debt discharged, Lantern Circle steward.
-- Rhea Quill — cartographer — keep maps accurate without harming people — fear of losing trust in her craft — secret knowledge of hidden corridor access — status: ally in Lantern Circle.
-- Harin — lower-ring mediator — protect uncounted travelers — fear of council retaliation — secret list of scratched-out names — status: Quiet Route caretaker.
-- Viro — lantern maker — preserve Lantern Circle traditions — fear of fading institutional memory — secret of lantern seal network — status: advisor to Ilya.
-- Tamsin Kade — civic ombuds — balance fairness with stability — fear of civic fracture — secret awareness of Lantern Circle — status: quiet protector of the compromise.
-
-### Open Threads
-- The broader network of other sealed mercy routes hinted in the Mapworks code.
-- Whether the council will keep honoring the Quiet Route compromise as leadership changes.
-- Ilya’s new Mercy Routes ledger and who will be entrusted with its future entries.
-
-### Promises To Pay Off
-- The map’s ghost line will continue to guide those who carry lanterns.
-- The Lantern Circle will maintain the Quiet Route as a living promise, not just a hidden corridor.
-- Ilya will use her archivist role to protect the uncounted while keeping the ring’s record honest.
-
-### Proper Noun Audit
-- [x] No famous IP/franchise references
-- [x] No real-world lyrics or quotes
-- [x] No living author imitation
+Fin
