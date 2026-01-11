@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Play } from 'lucide-react';
+import { Play, Volume2 } from 'lucide-react';
 import { StoryMeta } from '@/types/story';
 
 const BASE_PATH = import.meta.env.BASE_URL || '/';
@@ -11,6 +11,8 @@ type ProgressV2 = {
   pct: number;
   scrollTop: number;
   updatedAt: number;
+  ttsIndex?: number;
+  ttsUpdatedAt?: number;
 };
 
 type ProgressMapV2 = Record<string, ProgressV2>;
@@ -48,6 +50,8 @@ function readProgressMapV2FromStorage(): ProgressMapV2 {
         pct: Math.min(1, Math.max(0, parsed.pct)),
         scrollTop: Math.max(0, parsed.scrollTop),
         updatedAt: Number(parsed.updatedAt ?? 0),
+        ttsIndex: typeof parsed.ttsIndex === 'number' ? parsed.ttsIndex : undefined,
+        ttsUpdatedAt: typeof parsed.ttsUpdatedAt === 'number' ? parsed.ttsUpdatedAt : undefined,
       };
     }
   } catch {
@@ -98,13 +102,14 @@ export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
         const pct = Math.min(1, Math.max(0, Number(entry?.pct ?? 0)));
         const progress = Math.max(0, Math.min(100, Math.round(pct * 100)));
         const lastRead = Number(entry?.updatedAt ?? 0);
+        const hasAudioSaved = typeof entry?.ttsIndex === 'number' && entry.ttsIndex > 0;
 
         // Requirement: show if pct > 0.01 AND pct < 0.99 (not finished)
         if (pct < 0.01 || pct > 0.99) return null;
 
-        return { story, progress, lastRead };
+        return { story, progress, lastRead, hasAudioSaved };
       })
-      .filter(Boolean) as { story: StoryMeta; progress: number; lastRead: number }[];
+      .filter(Boolean) as { story: StoryMeta; progress: number; lastRead: number; hasAudioSaved: boolean }[];
 
     return entries.sort((a, b) => b.lastRead - a.lastRead);
   }, [progressMap, stories]);
@@ -116,7 +121,7 @@ export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
       <h2 className="font-display text-xl md:text-2xl text-foreground mb-4">Continue Reading</h2>
 
       <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory">
-        {storiesWithProgress.map(({ story, progress }) => {
+        {storiesWithProgress.map(({ story, progress, hasAudioSaved }) => {
           const imagePath = story.posterImage.startsWith('/')
             ? `${BASE_PATH}${story.posterImage.slice(1)}`
             : `${BASE_PATH}stories/${story.slug}/${story.posterImage}`;
@@ -138,6 +143,14 @@ export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
 
                 {/* Gradient overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+
+                {/* Audio saved chip */}
+                {hasAudioSaved && (
+                  <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-primary/90 text-primary-foreground text-xs rounded-full">
+                    <Volume2 size={10} />
+                    <span>Audio saved</span>
+                  </div>
+                )}
 
                 {/* Progress bar */}
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-muted/50">
@@ -164,5 +177,3 @@ export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
     </section>
   );
 }
-
-
