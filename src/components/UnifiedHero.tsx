@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, HelpCircle, CreditCard, Info } from 'lucide-react';
+import { Play, HelpCircle, Info } from 'lucide-react';
 import { StoryMeta } from '@/types/story';
 import { HowItWorksModal } from './HowItWorksModal';
-import { PricingModal } from './PricingModal';
 
 interface UnifiedHeroProps {
   story: StoryMeta;
@@ -13,7 +12,6 @@ const BASE_PATH = import.meta.env.BASE_URL || '/';
 
 export function UnifiedHero({ story }: UnifiedHeroProps) {
   const [howItWorksOpen, setHowItWorksOpen] = useState(false);
-  const [pricingOpen, setPricingOpen] = useState(false);
 
   const imagePath = story.posterImage.startsWith('/')
     ? `${BASE_PATH}${story.posterImage.slice(1)}`
@@ -73,13 +71,6 @@ export function UnifiedHero({ story }: UnifiedHeroProps) {
               >
                 <HelpCircle size={18} />
                 How it works
-              </button>
-              <button
-                onClick={() => setPricingOpen(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-foreground/10 backdrop-blur-sm text-foreground font-semibold rounded-lg hover:bg-foreground/20 transition-colors border border-foreground/20 focus:outline-none focus:ring-2 focus:ring-foreground/50 focus:ring-offset-2 focus:ring-offset-background"
-              >
-                <CreditCard size={18} />
-                Pricing
               </button>
             </div>
           </div>
@@ -156,7 +147,6 @@ export function UnifiedHero({ story }: UnifiedHeroProps) {
       </section>
 
       <HowItWorksModal open={howItWorksOpen} onOpenChange={setHowItWorksOpen} />
-      <PricingModal open={pricingOpen} onOpenChange={setPricingOpen} />
     </>
   );
 }

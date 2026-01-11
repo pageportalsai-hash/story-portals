@@ -5,7 +5,7 @@ import { ReadingProgress } from '@/components/ReadingProgress';
 import { useReaderSettings } from '@/hooks/useReaderSettings';
 import { StorySkeleton } from '@/components/StorySkeleton';
 import { StoryError } from '@/components/StoryError';
-import { ReaderSettings } from '@/components/ReaderSettings';
+// ReaderSettings button removed - controls now in TopReaderBar
 import { TopReaderBar } from '@/components/TopReaderBar';
 import { MoreLikeThis } from '@/components/MoreLikeThis';
 import {
@@ -530,8 +530,6 @@ export default function StoryPage() {
                 </>
               )}
             </button>
-
-            <ReaderSettings settings={settings} onUpdate={updateSettings} />
           </div>
         </div>
 
@@ -569,7 +567,7 @@ export default function StoryPage() {
       </header>
 
       {/* Always-visible reader controls bar */}
-      <TopReaderBar settings={settings} onUpdate={updateSettings} contentRef={contentRef} />
+      <TopReaderBar settings={settings} onUpdate={updateSettings} contentRef={contentRef} readerRef={readerRef} slug={slug} />
 
       {/* Main Reader Area - flex-1 to fill remaining space, with bottom padding for ad slot */}
       <main className="flex-1 min-h-0 flex flex-col pb-[calc(var(--ad-slot-h)+8px)]">

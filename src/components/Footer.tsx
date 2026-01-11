@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { BookOpen, Github } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 
 export function Footer() {
   return (
@@ -23,20 +23,6 @@ export function Footer() {
             >
               Library
             </Link>
-            <Link
-              to="/add"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Add Story
-            </Link>
-            <a
-              href="https://github.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Github size={18} />
-            </a>
           </nav>
 
           {/* Copyright */}

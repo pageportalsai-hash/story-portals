@@ -1,12 +1,7 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, LogIn } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 import { SearchBar } from './SearchBar';
-import { AuthModal } from './AuthModal';
-import { AccountDropdown } from './AccountDropdown';
-import { useUserState } from '@/hooks/useUserState';
 import { StoryMeta } from '@/types/story';
-import { Button } from '@/components/ui/button';
 
 interface HeaderProps {
   stories: StoryMeta[];
@@ -14,9 +9,6 @@ interface HeaderProps {
 }
 
 export function Header({ stories, showSearch = true }: HeaderProps) {
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const { isGuest, signInAsGuest, signOut } = useUserState();
-
   // Calculate header height for spacer: safe-area + main bar (56px) + mobile search (48px on mobile)
   const headerHeight = 'calc(env(safe-area-inset-top) + 56px + 48px)';
   const headerHeightDesktop = 'calc(env(safe-area-inset-top) + 64px)';
@@ -56,20 +48,9 @@ export function Header({ stories, showSearch = true }: HeaderProps) {
             </div>
           )}
 
-          {/* Nav */}
+          {/* Nav placeholder for future features */}
           <nav className="flex items-center gap-4">
-            {isGuest ? (
-              <AccountDropdown onSignOut={signOut} />
-            ) : (
-              <Button
-                variant="ghost"
-                onClick={() => setAuthModalOpen(true)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              >
-                <LogIn size={16} />
-                <span className="hidden sm:inline">Sign in</span>
-              </Button>
-            )}
+            {/* Sign-in button removed */}
           </nav>
         </div>
 
@@ -80,12 +61,6 @@ export function Header({ stories, showSearch = true }: HeaderProps) {
           </div>
         )}
       </header>
-
-      <AuthModal
-        open={authModalOpen}
-        onOpenChange={setAuthModalOpen}
-        onGuestSignIn={signInAsGuest}
-      />
     </>
   );
 }

@@ -1,4 +1,15 @@
 @tailwind base;
+
+/* TTS highlighting styles */
+.reader-content [data-tts-active="true"] {
+  background: rgba(255, 180, 0, 0.12);
+  outline: 1px solid rgba(255, 180, 0, 0.25);
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(255, 180, 0, 0.06);
+  transition: background 150ms ease, outline-color 150ms ease;
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
 @tailwind components;
 @tailwind utilities;
 
