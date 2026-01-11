@@ -229,9 +229,9 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
           />
         )}
 
-        {/* Gradient Overlay - enhanced bottom gradient for title readability */}
-        <div className="absolute inset-0 card-overlay" />
-        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-background via-background/70 to-transparent pointer-events-none" />
+        {/* Gradient Overlay - softer on desktop hover */}
+        <div className="absolute inset-0 card-overlay opacity-100 group-hover:opacity-50 transition-opacity duration-300" />
+        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-background via-background/70 to-transparent pointer-events-none opacity-100 group-hover:opacity-60 transition-opacity duration-300" />
 
         {/* Content Overlay */}
         <div

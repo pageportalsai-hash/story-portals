@@ -6,6 +6,7 @@ import { useReaderSettings } from '@/hooks/useReaderSettings';
 import { StorySkeleton } from '@/components/StorySkeleton';
 import { StoryError } from '@/components/StoryError';
 import { ReaderSettings } from '@/components/ReaderSettings';
+import { TopReaderBar } from '@/components/TopReaderBar';
 import { MoreLikeThis } from '@/components/MoreLikeThis';
 import {
   AlertDialog,
@@ -25,6 +26,8 @@ import {
   User,
   Calendar,
   BookOpen,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 
@@ -108,9 +111,15 @@ export default function StoryPage() {
   const [moreLikeThisExpanded, setMoreLikeThisExpanded] = useState(false);
   const [contentReady, setContentReady] = useState(false);
   const [progressPct, setProgressPct] = useState(0);
+  const [bottomBarCollapsed, setBottomBarCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('pageportals:readerBottomCollapsed') === 'true';
+  });
 
   // Real scroll container
   const readerRef = useRef<HTMLDivElement>(null);
+  // Content ref for TTS
+  const contentRef = useRef<HTMLDivElement>(null);
 
   // Scroll tracking throttles
   const scrollRafRef = useRef<number | null>(null);
@@ -559,8 +568,11 @@ export default function StoryPage() {
         )}
       </header>
 
-      {/* Main Reader Area - flex-1 to fill remaining space */}
-      <main className="flex-1 min-h-0 flex flex-col">
+      {/* Always-visible reader controls bar */}
+      <TopReaderBar settings={settings} onUpdate={updateSettings} contentRef={contentRef} />
+
+      {/* Main Reader Area - flex-1 to fill remaining space, with bottom padding for ad slot */}
+      <main className="flex-1 min-h-0 flex flex-col pb-[calc(var(--ad-slot-h)+8px)]">
         {/* Reader Frame Container - clean, no border/outline */}
         <div className={`flex-1 min-h-0 flex justify-center px-2 sm:px-4 md:px-6 ${readerFramePaddingClass}`}>
           <div
@@ -602,6 +614,7 @@ export default function StoryPage() {
 
                 {/* Story Content - font size applies here */}
                 <div
+                  ref={contentRef}
                   className={`reader-content max-w-none ${fontSizeClass} ${
                     settings.theme === 'paper' ? 'prose-paper' : 'prose-story'
                   }`}
@@ -616,17 +629,40 @@ export default function StoryPage() {
           </div>
         </div>
 
-        {/* More Like This - Collapsible on mobile, always visible on desktop */}
+        {/* More Like This - Collapsible on desktop with chevron toggle */}
         {stories.length > 1 && !settings.focusMode && (
-          <div className="flex-shrink-0 bg-background">
-            <MoreLikeThis
-              currentStory={story}
-              allStories={stories}
-              compact
-              collapsible
-              expanded={moreLikeThisExpanded}
-              onToggle={() => setMoreLikeThisExpanded(!moreLikeThisExpanded)}
-            />
+          <div className="flex-shrink-0 bg-background relative">
+            {/* Desktop collapse toggle */}
+            <button
+              onClick={() => {
+                const next = !bottomBarCollapsed;
+                setBottomBarCollapsed(next);
+                try {
+                  localStorage.setItem('pageportals:readerBottomCollapsed', String(next));
+                } catch {}
+              }}
+              className="hidden md:flex absolute -top-3 left-1/2 -translate-x-1/2 z-10 items-center justify-center w-8 h-6 rounded-t-lg bg-muted border border-b-0 border-border hover:bg-muted/80 transition-colors"
+              title={bottomBarCollapsed ? 'Expand recommendations' : 'Collapse recommendations'}
+            >
+              {bottomBarCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+
+            {/* Collapsible content - hidden on desktop when collapsed */}
+            <div className={bottomBarCollapsed ? 'hidden md:hidden' : ''}>
+              <MoreLikeThis
+                currentStory={story}
+                allStories={stories}
+                compact
+                collapsible
+                expanded={moreLikeThisExpanded}
+                onToggle={() => setMoreLikeThisExpanded(!moreLikeThisExpanded)}
+              />
+            </div>
+
+            {/* Collapsed state indicator on desktop */}
+            {bottomBarCollapsed && (
+              <div className="hidden md:block h-4" />
+            )}
           </div>
         )}
       </main>
