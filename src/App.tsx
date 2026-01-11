@@ -2,13 +2,32 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { HashRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, Routes, Route, useLocation } from "react-router-dom";
 import Index from "./pages/Index";
 import StoryPage from "./pages/StoryPage";
 import AddStory from "./pages/AddStory";
 import NotFound from "./pages/NotFound";
+import { AdSlot } from "./components/AdSlot";
 
 const queryClient = new QueryClient();
+
+function AppContent() {
+  const location = useLocation();
+  // StoryPage manages its own padding; other pages need bottom padding for ad slot
+  const isStoryPage = location.pathname.startsWith('/story/');
+
+  return (
+    <div className={isStoryPage ? '' : 'pb-[calc(var(--ad-slot-h)+16px)]'}>
+      <Routes>
+        <Route path="/" element={<Index />} />
+        <Route path="/story/:slug" element={<StoryPage />} />
+        <Route path="/add" element={<AddStory />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+      <AdSlot />
+    </div>
+  );
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -16,12 +35,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <HashRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/story/:slug" element={<StoryPage />} />
-          <Route path="/add" element={<AddStory />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AppContent />
       </HashRouter>
     </TooltipProvider>
   </QueryClientProvider>
