@@ -533,14 +533,14 @@ export default function StoryPage() {
           </div>
         </div>
 
-        {/* Story Title Bar - below nav */}
+        {/* Story Title Bar - below nav, now includes synopsis + tags */}
         {!settings.focusMode && (
           <div className="px-4 md:px-8 py-3">
             <div className="mx-auto w-full max-w-[1100px] lg:max-w-[1200px]">
               <h1 className="font-display text-lg md:text-xl font-bold mb-1 line-clamp-1 text-foreground">
                 {story.title}
               </h1>
-              <div className="flex flex-wrap items-center gap-2 md:gap-3">
+              <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-2">
                 <span className="genre-chip text-xs">{story.genre}</span>
                 {story.year && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -558,6 +558,26 @@ export default function StoryPage() {
                   <span className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
                     <User size={12} />
                     {story.author}
+                  </span>
+                )}
+              </div>
+              {/* Synopsis - moved from reader pane */}
+              <p className="text-xs md:text-sm italic text-muted-foreground line-clamp-2 mb-2">
+                {story.synopsis}
+              </p>
+              {/* Tags - moved from reader pane */}
+              <div className="flex flex-wrap gap-1.5">
+                {story.tags.slice(0, 4).map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+                {story.tags.length > 4 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/30 text-muted-foreground">
+                    +{story.tags.length - 4}
                   </span>
                 )}
               </div>
@@ -585,32 +605,7 @@ export default function StoryPage() {
             <article className="px-5 sm:px-8 md:px-12 lg:px-16 py-6 md:py-10">
               {/* Inner content wrapper - wider text column */}
               <div className={`mx-auto w-full ${textColumnClass}`}>
-                {/* Synopsis */}
-                <p
-                  className={`italic border-l-4 border-primary pl-4 mb-6 md:mb-8 ${fontSizeClass} ${
-                    settings.theme === 'paper' ? 'text-stone-600' : 'text-muted-foreground'
-                  }`}
-                >
-                  {story.synopsis}
-                </p>
-
-                {/* Tags */}
-                <div className="flex flex-wrap gap-2 mb-6 md:mb-8">
-                  {story.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className={`text-xs px-2 py-1 rounded ${
-                        settings.theme === 'paper'
-                          ? 'text-stone-500 bg-stone-200/50'
-                          : 'text-muted-foreground bg-muted/50'
-                      }`}
-                    >
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Story Content - font size applies here */}
+                {/* Story Content - font size applies here (synopsis + tags moved to header) */}
                 <div
                   ref={contentRef}
                   className={`reader-content max-w-none ${fontSizeClass} ${

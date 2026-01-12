@@ -12,10 +12,25 @@ import {
   Plus,
   MapPin,
   RotateCcw,
+  List,
+  ChevronRight,
 } from 'lucide-react';
 import { ReaderSettings } from '@/hooks/useReaderSettings';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const PROGRESS_KEY_PREFIX = 'pageportals:progress:';
+const VOICE_KEY = 'pageportals:ttsVoiceName';
 
 type TtsStartMode = 'top' | 'here' | 'last';
 
@@ -30,6 +45,84 @@ interface TopReaderBarProps {
 interface BlockChunk {
   el: HTMLElement;
   text: string;
+}
+
+interface TocEntry {
+  id: string;
+  text: string;
+  level: number;
+}
+
+// Voice scoring heuristic
+function scoreVoice(voice: SpeechSynthesisVoice): number {
+  let score = 0;
+  const name = voice.name.toLowerCase();
+  const uri = voice.voiceURI.toLowerCase();
+  const combined = `${name} ${uri}`;
+
+  // Language bonuses
+  if (voice.lang === 'en-US') score += 30;
+  else if (voice.lang.startsWith('en-')) score += 15;
+
+  // Tier A keywords (+100 each)
+  const tierA = ['neural', 'natural', 'online', 'enhanced', 'premium'];
+  tierA.forEach((kw) => {
+    if (combined.includes(kw)) score += 100;
+  });
+
+  // Tier B keywords (+40 each)
+  const tierB = ['microsoft', 'google', 'siri', 'apple', 'azure', 'aria', 'jenny', 'guy'];
+  tierB.forEach((kw) => {
+    if (combined.includes(kw)) score += 40;
+  });
+
+  // Tier C keywords (+20 each)
+  const tierC = ['united states', 'english (united states)', 'en-us'];
+  tierC.forEach((kw) => {
+    if (combined.includes(kw)) score += 20;
+  });
+
+  // Penalty keywords (-60 each)
+  const penalties = ['default', 'compact', 'basic', 'legacy', 'espeak'];
+  penalties.forEach((kw) => {
+    if (combined.includes(kw)) score -= 60;
+  });
+
+  // Extra penalty for "default" in name
+  if (name.includes('default')) score -= 25;
+
+  return score;
+}
+
+function getBestVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  if (voices.length === 0) return null;
+  
+  // Filter to English voices first
+  const englishVoices = voices.filter((v) => v.lang.startsWith('en-'));
+  const candidateVoices = englishVoices.length > 0 ? englishVoices : voices;
+  
+  let best = candidateVoices[0];
+  let bestScore = scoreVoice(best);
+
+  for (let i = 1; i < candidateVoices.length; i++) {
+    const score = scoreVoice(candidateVoices[i]);
+    if (score > bestScore) {
+      best = candidateVoices[i];
+      bestScore = score;
+    }
+  }
+
+  return best;
+}
+
+function preprocessTextForSpeech(text: string): string {
+  // Trim and collapse multiple spaces
+  let processed = text.trim().replace(/\s+/g, ' ');
+  // Ensure ends with punctuation
+  if (processed.length > 0 && !/[.?!]$/.test(processed)) {
+    processed += '.';
+  }
+  return processed;
 }
 
 function readSavedTtsIndex(slug: string): number | null {
@@ -60,20 +153,54 @@ function saveTtsIndex(slug: string, ttsIndex: number) {
   } catch {}
 }
 
+function slugify(text: string, index: number): string {
+  return `toc-${index}-${text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 40)}`;
+}
+
 export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }: TopReaderBarProps) {
   const [ttsSupported, setTtsSupported] = useState(false);
   const [ttsState, setTtsState] = useState<'idle' | 'playing' | 'paused'>('idle');
   const [startMode, setStartMode] = useState<TtsStartMode>('top');
   const [savedTtsIndex, setSavedTtsIndex] = useState<number | null>(null);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceName, setSelectedVoiceName] = useState<string>('auto');
+  const [tocEntries, setTocEntries] = useState<TocEntry[]>([]);
+  const [tocOpen, setTocOpen] = useState(false);
 
   const blocksRef = useRef<BlockChunk[]>([]);
   const currentIndexRef = useRef(0);
   const activeElRef = useRef<HTMLElement | null>(null);
   const lastUserScrollRef = useRef(0);
 
-  // Check TTS support
+  // Check TTS support and load voices
   useEffect(() => {
-    setTtsSupported('speechSynthesis' in window);
+    if (!('speechSynthesis' in window)) {
+      setTtsSupported(false);
+      return;
+    }
+    setTtsSupported(true);
+
+    const loadVoices = () => {
+      const availableVoices = window.speechSynthesis.getVoices();
+      setVoices(availableVoices);
+      
+      // Load saved voice preference
+      const savedVoice = localStorage.getItem(VOICE_KEY);
+      if (savedVoice && availableVoices.find((v) => v.name === savedVoice)) {
+        setSelectedVoiceName(savedVoice);
+      }
+    };
+
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
   }, []);
 
   // Load saved TTS index when slug changes
@@ -91,6 +218,40 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
       setStartMode('top');
     }
   }, [slug]);
+
+  // Build TOC from rendered content
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) {
+      setTocEntries([]);
+      return;
+    }
+
+    // Wait a bit for content to render
+    const timer = setTimeout(() => {
+      const headings = el.querySelectorAll('h1, h2, h3') as NodeListOf<HTMLElement>;
+      const entries: TocEntry[] = [];
+
+      headings.forEach((heading, index) => {
+        const text = (heading.textContent || '').trim();
+        if (text.length === 0) return;
+
+        // Generate or use existing id
+        let id = heading.id;
+        if (!id) {
+          id = slugify(text, index);
+          heading.id = id;
+        }
+
+        const level = parseInt(heading.tagName.charAt(1), 10);
+        entries.push({ id, text, level });
+      });
+
+      setTocEntries(entries);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [contentRef, slug]);
 
   // Cleanup TTS on unmount or slug change
   useEffect(() => {
@@ -184,6 +345,13 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
     return 0;
   }, [readerRef]);
 
+  const getSelectedVoice = useCallback((): SpeechSynthesisVoice | null => {
+    if (selectedVoiceName === 'auto') {
+      return getBestVoice(voices);
+    }
+    return voices.find((v) => v.name === selectedVoiceName) || getBestVoice(voices);
+  }, [selectedVoiceName, voices]);
+
   const speakBlock = useCallback((index: number) => {
     const blocks = blocksRef.current;
     if (index >= blocks.length) {
@@ -205,11 +373,24 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
       saveTtsIndex(slug, index);
     }
 
-    const utterance = new SpeechSynthesisUtterance(block.text);
+    // Preprocess text for better pacing
+    const processedText = preprocessTextForSpeech(block.text);
+
+    const utterance = new SpeechSynthesisUtterance(processedText);
     utterance.rate = 1;
     utterance.pitch = 1;
+
+    // Set voice
+    const voice = getSelectedVoice();
+    if (voice) {
+      utterance.voice = voice;
+    }
+
     utterance.onend = () => {
-      speakBlock(index + 1);
+      // Short pause between blocks for pacing
+      setTimeout(() => {
+        speakBlock(index + 1);
+      }, 150);
     };
     utterance.onerror = (e) => {
       // Ignore 'interrupted' errors (happens on cancel)
@@ -220,7 +401,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
     };
 
     window.speechSynthesis.speak(utterance);
-  }, [autoScrollToBlock, clearHighlight, highlightBlock, slug]);
+  }, [autoScrollToBlock, clearHighlight, getSelectedVoice, highlightBlock, slug]);
 
   const getStartIndex = useCallback((): number => {
     switch (startMode) {
@@ -271,6 +452,23 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
     clearHighlight();
   }, [clearHighlight]);
 
+  const handleVoiceChange = useCallback((voiceName: string) => {
+    setSelectedVoiceName(voiceName);
+    if (voiceName === 'auto') {
+      localStorage.removeItem(VOICE_KEY);
+    } else {
+      localStorage.setItem(VOICE_KEY, voiceName);
+    }
+  }, []);
+
+  const handleChapterClick = useCallback((id: string) => {
+    const heading = contentRef.current?.querySelector(`#${id}`) as HTMLElement;
+    if (heading) {
+      heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setTocOpen(false);
+    }
+  }, [contentRef]);
+
   const cycleFontSize = useCallback(() => {
     const sizes: Array<'S' | 'M' | 'L'> = ['S', 'M', 'L'];
     const idx = sizes.indexOf(settings.fontSize);
@@ -294,7 +492,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
     'inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-md transition-colors bg-secondary/80 hover:bg-secondary text-secondary-foreground';
   const activeBtnClass =
     'inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-md transition-colors bg-primary text-primary-foreground';
-  const startModeBtn = (mode: TtsStartMode, label: string, icon?: React.ReactNode) =>
+  const startModeBtn = (mode: TtsStartMode) =>
     `inline-flex items-center justify-center gap-1 px-2 py-1 text-xs rounded transition-colors ${
       startMode === mode
         ? 'bg-primary/20 text-primary border border-primary/30'
@@ -352,16 +550,71 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
           <span className="hidden sm:inline">Focus</span>
         </button>
 
+        {/* Chapters TOC */}
+        {tocEntries.length > 0 && (
+          <Popover open={tocOpen} onOpenChange={setTocOpen}>
+            <PopoverTrigger asChild>
+              <button className={btnClass} title="Table of Contents">
+                <List size={14} />
+                <span className="hidden sm:inline">Chapters</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 max-h-80 overflow-y-auto p-2" align="start">
+              <div className="text-xs font-medium text-muted-foreground mb-2 px-2">
+                Table of Contents
+              </div>
+              <div className="space-y-1">
+                {tocEntries.map((entry) => (
+                  <button
+                    key={entry.id}
+                    onClick={() => handleChapterClick(entry.id)}
+                    className={`w-full text-left text-sm py-1.5 px-2 rounded hover:bg-muted/60 transition-colors flex items-center gap-1.5 ${
+                      entry.level === 2 ? 'pl-4' : entry.level === 3 ? 'pl-6' : ''
+                    }`}
+                  >
+                    <ChevronRight size={12} className="text-muted-foreground flex-shrink-0" />
+                    <span className="line-clamp-2">{entry.text}</span>
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
+
         {/* TTS Controls */}
         {ttsSupported && (
           <div className="flex items-center gap-1 ml-auto">
+            {/* Voice selector - only show when idle and voices exist */}
+            {ttsState === 'idle' && voices.length > 1 && (
+              <div className="hidden lg:block">
+                <Select value={selectedVoiceName} onValueChange={handleVoiceChange}>
+                  <SelectTrigger className="h-7 text-xs w-32 bg-secondary/80 border-0">
+                    <SelectValue placeholder="Voice" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="auto" className="text-xs">
+                      Best (Auto)
+                    </SelectItem>
+                    {voices
+                      .filter((v) => v.lang.startsWith('en-'))
+                      .slice(0, 15)
+                      .map((v) => (
+                        <SelectItem key={v.name} value={v.name} className="text-xs">
+                          {v.name.replace('Microsoft ', '').replace('Google ', '').slice(0, 25)}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Start mode selector - only show when idle */}
             {ttsState === 'idle' && (
               <div className="hidden sm:flex items-center gap-1 mr-2">
                 <span className="text-xs text-muted-foreground mr-1">Start:</span>
                 <button
                   onClick={() => setStartMode('top')}
-                  className={startModeBtn('top', 'Top')}
+                  className={startModeBtn('top')}
                   title="Start from beginning"
                 >
                   <RotateCcw size={10} />
@@ -369,7 +622,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
                 </button>
                 <button
                   onClick={() => setStartMode('here')}
-                  className={startModeBtn('here', 'Here')}
+                  className={startModeBtn('here')}
                   title="Start from current position"
                 >
                   <MapPin size={10} />
@@ -378,7 +631,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
                 {savedTtsIndex !== null && savedTtsIndex > 0 && (
                   <button
                     onClick={() => setStartMode('last')}
-                    className={startModeBtn('last', 'Last audio')}
+                    className={startModeBtn('last')}
                     title="Resume from last audio position"
                   >
                     <Play size={10} />
@@ -437,6 +690,15 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
           </div>
         )}
       </div>
+
+      {/* Voice quality helper note - show when TTS is available but idle */}
+      {ttsSupported && ttsState === 'idle' && (
+        <div className="px-3 pb-2 -mt-1">
+          <p className="text-[10px] text-muted-foreground/60 hidden lg:block">
+            Voice quality depends on your browser/OS. For better free voices, try Microsoft Edge or install enhanced system voices.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
