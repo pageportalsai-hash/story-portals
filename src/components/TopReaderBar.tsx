@@ -14,6 +14,12 @@ import {
   RotateCcw,
   List,
   ChevronRight,
+  Search,
+  X,
+  ChevronUp,
+  ChevronDown,
+  Clock,
+  Loader2,
 } from 'lucide-react';
 import { ReaderSettings } from '@/hooks/useReaderSettings';
 import {
@@ -31,8 +37,11 @@ import {
 
 const PROGRESS_KEY_PREFIX = 'pageportals:progress:';
 const VOICE_KEY = 'pageportals:ttsVoiceName';
+const ENGINE_KEY = 'pageportals:ttsEngine';
+const WPM = 220; // Words per minute for time estimate
 
 type TtsStartMode = 'top' | 'here' | 'last';
+type TtsEngine = 'system' | 'narrator';
 
 interface TopReaderBarProps {
   settings: ReaderSettings;
@@ -40,6 +49,7 @@ interface TopReaderBarProps {
   contentRef: React.RefObject<HTMLElement>;
   readerRef?: React.RefObject<HTMLElement>;
   slug?: string;
+  progressPct?: number;
 }
 
 interface BlockChunk {
@@ -51,6 +61,11 @@ interface TocEntry {
   id: string;
   text: string;
   level: number;
+}
+
+interface SearchMatch {
+  el: HTMLElement;
+  originalHTML: string;
 }
 
 // Voice scoring heuristic
@@ -161,7 +176,11 @@ function slugify(text: string, index: number): string {
     .slice(0, 40)}`;
 }
 
-export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }: TopReaderBarProps) {
+function escapeRegExp(string: string): string {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, progressPct = 0 }: TopReaderBarProps) {
   const [ttsSupported, setTtsSupported] = useState(false);
   const [ttsState, setTtsState] = useState<'idle' | 'playing' | 'paused'>('idle');
   const [startMode, setStartMode] = useState<TtsStartMode>('top');
@@ -170,6 +189,25 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
   const [selectedVoiceName, setSelectedVoiceName] = useState<string>('auto');
   const [tocEntries, setTocEntries] = useState<TocEntry[]>([]);
   const [tocOpen, setTocOpen] = useState(false);
+  
+  // Engine state
+  const [ttsEngine, setTtsEngine] = useState<TtsEngine>(() => {
+    if (typeof window === 'undefined') return 'system';
+    return (localStorage.getItem(ENGINE_KEY) as TtsEngine) || 'system';
+  });
+  const [narratorLoading, setNarratorLoading] = useState(false);
+  const [narratorError, setNarratorError] = useState<string | null>(null);
+  
+  // Search state
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+  
+  // Time left state
+  const [totalWords, setTotalWords] = useState(0);
+  
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const blocksRef = useRef<BlockChunk[]>([]);
   const currentIndexRef = useRef(0);
@@ -219,6 +257,23 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
     }
   }, [slug]);
 
+  // Calculate total words when content is ready
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) {
+      setTotalWords(0);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const text = el.textContent || '';
+      const words = text.trim().split(/\s+/).filter(Boolean).length;
+      setTotalWords(words);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [contentRef, slug]);
+
   // Build TOC from rendered content
   useEffect(() => {
     const el = contentRef.current;
@@ -260,6 +315,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
         window.speechSynthesis.cancel();
       }
       clearHighlight();
+      clearSearchHighlights();
     };
   }, [slug]);
 
@@ -282,6 +338,13 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
       container.removeEventListener('mousedown', handleUserScroll);
     };
   }, [readerRef]);
+
+  // Focus search input when opened
+  useEffect(() => {
+    if (searchOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [searchOpen]);
 
   const clearHighlight = useCallback(() => {
     if (activeElRef.current) {
@@ -424,6 +487,25 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
       return;
     }
 
+    // If using narrator engine, show info message and fall back to system
+    if (ttsEngine === 'narrator') {
+      setNarratorLoading(true);
+      // Simulate checking for narrator availability (experimental placeholder)
+      setTimeout(() => {
+        setNarratorLoading(false);
+        setNarratorError('Narrator voice is experimental and requires additional setup. Using system voice.');
+        setTtsEngine('system');
+        localStorage.setItem(ENGINE_KEY, 'system');
+        // Fall through to system TTS
+        playSystemTts();
+      }, 500);
+      return;
+    }
+
+    playSystemTts();
+  }, [ttsSupported, ttsState, ttsEngine]);
+
+  const playSystemTts = useCallback(() => {
     // Build blocks list
     const blocks = buildBlocks();
     if (blocks.length === 0) return;
@@ -436,7 +518,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
     window.speechSynthesis.cancel();
     setTtsState('playing');
     speakBlock(validStartIndex);
-  }, [ttsSupported, ttsState, buildBlocks, getStartIndex, speakBlock]);
+  }, [buildBlocks, getStartIndex, speakBlock]);
 
   const handleTtsPause = useCallback(() => {
     if (ttsState === 'playing') {
@@ -461,6 +543,12 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
     }
   }, []);
 
+  const handleEngineChange = useCallback((engine: TtsEngine) => {
+    setTtsEngine(engine);
+    localStorage.setItem(ENGINE_KEY, engine);
+    setNarratorError(null);
+  }, []);
+
   const handleChapterClick = useCallback((id: string) => {
     const heading = contentRef.current?.querySelector(`#${id}`) as HTMLElement;
     if (heading) {
@@ -468,6 +556,102 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
       setTocOpen(false);
     }
   }, [contentRef]);
+
+  // Search functionality
+  const clearSearchHighlights = useCallback(() => {
+    // Restore original HTML for all matches
+    searchMatches.forEach(({ el, originalHTML }) => {
+      el.innerHTML = originalHTML;
+    });
+    setSearchMatches([]);
+    setActiveMatchIndex(0);
+  }, [searchMatches]);
+
+  const performSearch = useCallback((query: string) => {
+    clearSearchHighlights();
+    
+    if (!query.trim() || !contentRef.current) {
+      return;
+    }
+
+    const el = contentRef.current;
+    const textElements = el.querySelectorAll('p, li, blockquote, h1, h2, h3, h4, h5, h6') as NodeListOf<HTMLElement>;
+    const newMatches: SearchMatch[] = [];
+    const regex = new RegExp(`(${escapeRegExp(query)})`, 'gi');
+
+    textElements.forEach((textEl) => {
+      const text = textEl.innerHTML;
+      if (regex.test(text)) {
+        // Save original HTML
+        newMatches.push({ el: textEl, originalHTML: text });
+        // Replace with highlighted version
+        textEl.innerHTML = text.replace(regex, '<mark class="search-hit">$1</mark>');
+      }
+      // Reset regex lastIndex
+      regex.lastIndex = 0;
+    });
+
+    setSearchMatches(newMatches);
+    
+    // Scroll to first match
+    if (newMatches.length > 0) {
+      setActiveMatchIndex(0);
+      const firstMark = el.querySelector('mark.search-hit');
+      if (firstMark) {
+        firstMark.classList.add('search-hit-active');
+        firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [clearSearchHighlights, contentRef]);
+
+  const goToMatch = useCallback((index: number) => {
+    if (!contentRef.current || searchMatches.length === 0) return;
+
+    const marks = contentRef.current.querySelectorAll('mark.search-hit');
+    if (marks.length === 0) return;
+
+    // Remove active from all
+    marks.forEach((m) => m.classList.remove('search-hit-active'));
+
+    // Wrap index
+    const newIndex = ((index % marks.length) + marks.length) % marks.length;
+    setActiveMatchIndex(newIndex);
+
+    // Add active to current and scroll
+    const activeMark = marks[newIndex];
+    if (activeMark) {
+      activeMark.classList.add('search-hit-active');
+      activeMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [contentRef, searchMatches.length]);
+
+  const handleSearchClose = useCallback(() => {
+    clearSearchHighlights();
+    setSearchQuery('');
+    setSearchOpen(false);
+  }, [clearSearchHighlights]);
+
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        goToMatch(activeMatchIndex - 1);
+      } else {
+        const marks = contentRef.current?.querySelectorAll('mark.search-hit');
+        if (marks && marks.length > 0) {
+          goToMatch(activeMatchIndex + 1);
+        } else {
+          performSearch(searchQuery);
+        }
+      }
+    } else if (e.key === 'Escape') {
+      handleSearchClose();
+    }
+  }, [activeMatchIndex, contentRef, goToMatch, handleSearchClose, performSearch, searchQuery]);
+
+  // Calculate time left
+  const remainingWords = Math.round(totalWords * (1 - progressPct));
+  const minutesLeft = Math.max(1, Math.round(remainingWords / WPM));
 
   const cycleFontSize = useCallback(() => {
     const sizes: Array<'S' | 'M' | 'L'> = ['S', 'M', 'L'];
@@ -498,6 +682,59 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
         ? 'bg-primary/20 text-primary border border-primary/30'
         : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
     }`;
+
+  // Search UI takes over when open
+  if (searchOpen) {
+    const matchCount = contentRef.current?.querySelectorAll('mark.search-hit').length || 0;
+    
+    return (
+      <div className="flex-shrink-0 border-b border-border bg-card/95 backdrop-blur-sm">
+        <div className="flex items-center gap-2 px-3 py-2">
+          <Search size={14} className="text-muted-foreground flex-shrink-0" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              performSearch(e.target.value);
+            }}
+            onKeyDown={handleSearchKeyDown}
+            placeholder="Find in story..."
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+          {matchCount > 0 && (
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {activeMatchIndex + 1}/{matchCount}
+            </span>
+          )}
+          <button
+            onClick={() => goToMatch(activeMatchIndex - 1)}
+            className={btnClass}
+            disabled={matchCount === 0}
+            title="Previous match"
+          >
+            <ChevronUp size={14} />
+          </button>
+          <button
+            onClick={() => goToMatch(activeMatchIndex + 1)}
+            className={btnClass}
+            disabled={matchCount === 0}
+            title="Next match"
+          >
+            <ChevronDown size={14} />
+          </button>
+          <button
+            onClick={handleSearchClose}
+            className={btnClass}
+            title="Close search"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-shrink-0 border-b border-border bg-card/95 backdrop-blur-sm">
@@ -550,6 +787,16 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
           <span className="hidden sm:inline">Focus</span>
         </button>
 
+        {/* Search Button */}
+        <button
+          onClick={() => setSearchOpen(true)}
+          className={btnClass}
+          title="Search in story"
+        >
+          <Search size={14} />
+          <span className="hidden sm:inline">Find</span>
+        </button>
+
         {/* Chapters TOC */}
         {tocEntries.length > 0 && (
           <Popover open={tocOpen} onOpenChange={setTocOpen}>
@@ -581,11 +828,38 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
           </Popover>
         )}
 
+        {/* Time Left - show when we have word count */}
+        {totalWords > 0 && progressPct < 0.98 && (
+          <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
+            <Clock size={12} />
+            <span>~{minutesLeft} min left</span>
+          </div>
+        )}
+
         {/* TTS Controls */}
         {ttsSupported && (
           <div className="flex items-center gap-1 ml-auto">
-            {/* Voice selector - only show when idle and voices exist */}
-            {ttsState === 'idle' && voices.length > 1 && (
+            {/* Engine selector - only show when idle */}
+            {ttsState === 'idle' && (
+              <div className="hidden xl:block">
+                <Select value={ttsEngine} onValueChange={(v) => handleEngineChange(v as TtsEngine)}>
+                  <SelectTrigger className="h-7 text-xs w-28 bg-secondary/80 border-0">
+                    <SelectValue placeholder="Engine" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="system" className="text-xs">
+                      System
+                    </SelectItem>
+                    <SelectItem value="narrator" className="text-xs">
+                      Narrator ✨
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Voice selector - only show when idle, system engine, and voices exist */}
+            {ttsState === 'idle' && ttsEngine === 'system' && voices.length > 1 && (
               <div className="hidden lg:block">
                 <Select value={selectedVoiceName} onValueChange={handleVoiceChange}>
                   <SelectTrigger className="h-7 text-xs w-32 bg-secondary/80 border-0">
@@ -646,8 +920,13 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
                 onClick={handleTtsPlay}
                 className={btnClass}
                 title="Read to me"
+                disabled={narratorLoading}
               >
-                <Volume2 size={14} />
+                {narratorLoading ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Volume2 size={14} />
+                )}
                 <span className="hidden sm:inline">Read to me</span>
               </button>
             )}
@@ -691,8 +970,17 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug }
         )}
       </div>
 
+      {/* Narrator error message */}
+      {narratorError && (
+        <div className="px-3 pb-2 -mt-1">
+          <p className="text-[10px] text-amber-500/80">
+            {narratorError}
+          </p>
+        </div>
+      )}
+
       {/* Voice quality helper note - show when TTS is available but idle */}
-      {ttsSupported && ttsState === 'idle' && (
+      {ttsSupported && ttsState === 'idle' && !narratorError && (
         <div className="px-3 pb-2 -mt-1">
           <p className="text-[10px] text-muted-foreground/60 hidden lg:block">
             Voice quality depends on your browser/OS. For better free voices, try Microsoft Edge or install enhanced system voices.

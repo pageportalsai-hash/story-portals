@@ -587,7 +587,7 @@ export default function StoryPage() {
       </header>
 
       {/* Always-visible reader controls bar */}
-      <TopReaderBar settings={settings} onUpdate={updateSettings} contentRef={contentRef} readerRef={readerRef} slug={slug} />
+      <TopReaderBar settings={settings} onUpdate={updateSettings} contentRef={contentRef} readerRef={readerRef} slug={slug} progressPct={progressPct} />
 
       {/* Main Reader Area - flex-1 to fill remaining space, with bottom padding for ad slot */}
       <main className="flex-1 min-h-0 flex flex-col pb-[calc(var(--ad-slot-h)+8px)]">
