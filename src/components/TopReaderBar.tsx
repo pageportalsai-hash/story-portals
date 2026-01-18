@@ -478,6 +478,21 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     }
   }, [startMode, savedTtsIndex, findFirstVisibleBlockIndex]);
 
+  const startPlayback = useCallback(() => {
+    // Build blocks list
+    const blocks = buildBlocks();
+    if (blocks.length === 0) return;
+
+    blocksRef.current = blocks;
+
+    const startIndex = getStartIndex();
+    const validStartIndex = Math.min(startIndex, blocks.length - 1);
+
+    window.speechSynthesis.cancel();
+    setTtsState('playing');
+    speakBlock(validStartIndex);
+  }, [buildBlocks, getStartIndex, speakBlock]);
+
   const handleTtsPlay = useCallback(() => {
     if (!ttsSupported) return;
 
@@ -496,29 +511,14 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
         setNarratorError('Narrator voice is experimental and requires additional setup. Using system voice.');
         setTtsEngine('system');
         localStorage.setItem(ENGINE_KEY, 'system');
-        // Fall through to system TTS
-        playSystemTts();
       }, 500);
+      // Still start playback immediately with system voice
+      startPlayback();
       return;
     }
 
-    playSystemTts();
-  }, [ttsSupported, ttsState, ttsEngine]);
-
-  const playSystemTts = useCallback(() => {
-    // Build blocks list
-    const blocks = buildBlocks();
-    if (blocks.length === 0) return;
-
-    blocksRef.current = blocks;
-
-    const startIndex = getStartIndex();
-    const validStartIndex = Math.min(startIndex, blocks.length - 1);
-
-    window.speechSynthesis.cancel();
-    setTtsState('playing');
-    speakBlock(validStartIndex);
-  }, [buildBlocks, getStartIndex, speakBlock]);
+    startPlayback();
+  }, [ttsSupported, ttsState, ttsEngine, startPlayback]);
 
   const handleTtsPause = useCallback(() => {
     if (ttsState === 'playing') {
