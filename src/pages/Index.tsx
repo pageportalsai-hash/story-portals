@@ -83,12 +83,42 @@ const perfMark = (name: string) => {
   }
 };
 
+const SCROLL_POSITION_KEY = 'pageportals:homeScrollY';
+
 const Index = () => {
   perfMark('Index:render-start');
   
   const { stories, loading, error } = useLibrary();
   const [lastRead, setLastRead] = useState<LastReadV2 | null>(null);
   const [showDeferredRows, setShowDeferredRows] = useState(false);
+
+  // Restore scroll position on mount
+  useEffect(() => {
+    const savedScrollY = sessionStorage.getItem(SCROLL_POSITION_KEY);
+    if (savedScrollY) {
+      const scrollY = parseInt(savedScrollY, 10);
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+      });
+    }
+    
+    // Save scroll position when leaving
+    const saveScroll = () => {
+      sessionStorage.setItem(SCROLL_POSITION_KEY, String(window.scrollY));
+    };
+    
+    window.addEventListener('beforeunload', saveScroll);
+    
+    // Also save on route change (hashchange for HashRouter)
+    window.addEventListener('hashchange', saveScroll);
+    
+    return () => {
+      saveScroll();
+      window.removeEventListener('beforeunload', saveScroll);
+      window.removeEventListener('hashchange', saveScroll);
+    };
+  }, []);
 
   useEffect(() => {
     const refresh = () => setLastRead(readLastRead());

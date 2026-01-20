@@ -16,6 +16,11 @@ const getIsTouch = () =>
   typeof window !== 'undefined' &&
   window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 
+// Detect desktop with proper hover capability
+const getCanHover = () =>
+  typeof window !== 'undefined' &&
+  window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
 export function PosterCard({ story, size = 'medium', priority = false }: PosterCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
@@ -130,17 +135,40 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
     }
   }, [isHovered, isPreviewing, isVisible, videoPath, videoReady]);
 
-  // Handle video play/pause on hover (desktop only)
+  // Handle video play/pause on hover (desktop only with proper hover capability)
   useEffect(() => {
     if (!videoRef.current || !story.posterVideo || !videoReady) return;
-    const isTouch = getIsTouch();
-    if (isTouch) return;
+    
+    // Only apply hover behavior on devices that support hover
+    const canHover = getCanHover();
+    if (!canHover) return;
 
+    const video = videoRef.current;
+    
     if (isHovered && isVisible) {
-      videoRef.current.play().catch(() => {});
+      // Ensure video is ready to play
+      const attemptPlay = () => {
+        video.play().catch((err) => {
+          // If play fails, retry once on canplay event
+          if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+            const retryPlay = () => {
+              video.play().catch(() => {});
+              video.removeEventListener('canplay', retryPlay);
+            };
+            video.addEventListener('canplay', retryPlay, { once: true });
+          }
+        });
+      };
+      
+      // If video is ready, play immediately; otherwise wait for loadeddata
+      if (video.readyState >= 2) {
+        attemptPlay();
+      } else {
+        video.addEventListener('loadeddata', attemptPlay, { once: true });
+      }
     } else {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0;
+      video.pause();
+      video.currentTime = 0;
     }
   }, [isHovered, isVisible, story.posterVideo, videoReady]);
 
@@ -226,8 +254,9 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
             muted
             loop
             playsInline
-            preload="none"
+            preload="metadata"
             onLoadedData={() => setVideoLoaded(true)}
+            onCanPlay={() => setVideoLoaded(true)}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
               (isHovered && videoLoaded) || isPreviewing ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
