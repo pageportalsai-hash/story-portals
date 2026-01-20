@@ -42,42 +42,42 @@ export function LibraryToolsSection({ stories }: LibraryToolsSectionProps) {
   const longReadsCount = stories.filter(s => s.readingTimeMins && s.readingTimeMins >= 45).length;
 
   return (
-    <section className="border-t border-border bg-card/30 py-10 md:py-14">
+    <section className="border-t border-border/50 bg-gradient-to-b from-transparent to-card/20 py-8 md:py-10">
       <div className="px-4 md:px-12 max-w-7xl mx-auto">
-        <h2 className="font-display text-xl md:text-2xl font-semibold text-foreground mb-8">
+        <h2 className="font-display text-lg md:text-xl font-semibold text-foreground mb-6">
           Explore the Library
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 md:gap-6">
           {/* Quick Filters */}
           <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-              <Clock size={14} />
+            <h3 className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-2 uppercase tracking-wide">
+              <Clock size={12} />
               Quick Filters
             </h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               <Link
                 to="/#short-reads"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/60 hover:bg-secondary text-secondary-foreground text-sm transition-colors"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary/50 hover:bg-secondary text-secondary-foreground text-xs transition-colors"
               >
                 <span>Short Reads</span>
-                <span className="text-xs text-muted-foreground">({shortReadsCount})</span>
+                <span className="text-muted-foreground">({shortReadsCount})</span>
               </Link>
               <Link
                 to="/#long-reads"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/60 hover:bg-secondary text-secondary-foreground text-sm transition-colors"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary/50 hover:bg-secondary text-secondary-foreground text-xs transition-colors"
               >
                 <span>Long Reads</span>
-                <span className="text-xs text-muted-foreground">({longReadsCount})</span>
+                <span className="text-muted-foreground">({longReadsCount})</span>
               </Link>
-              {genres.slice(0, 4).map(([genre, count]) => (
+              {genres.slice(0, 3).map(([genre, count]) => (
                 <Link
                   key={genre}
                   to={`/#${genre.toLowerCase().replace(/\s+/g, '-')}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/60 hover:bg-secondary text-secondary-foreground text-sm transition-colors"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-secondary/50 hover:bg-secondary text-secondary-foreground text-xs transition-colors"
                 >
                   <span>{genre}</span>
-                  <span className="text-xs text-muted-foreground">({count})</span>
+                  <span className="text-muted-foreground">({count})</span>
                 </Link>
               ))}
             </div>
@@ -85,15 +85,15 @@ export function LibraryToolsSection({ stories }: LibraryToolsSectionProps) {
 
           {/* Top Tags */}
           <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-              <Sparkles size={14} />
+            <h3 className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-2 uppercase tracking-wide">
+              <Sparkles size={12} />
               Popular Tags
             </h3>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1">
               {topTags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-block px-2.5 py-1 rounded-md bg-muted/40 text-muted-foreground text-xs hover:bg-muted hover:text-foreground transition-colors cursor-pointer capitalize"
+                  className="inline-block px-2 py-0.5 rounded bg-muted/30 text-muted-foreground text-xs hover:bg-muted hover:text-foreground transition-colors cursor-pointer capitalize"
                 >
                   {tag}
                 </span>
@@ -103,36 +103,29 @@ export function LibraryToolsSection({ stories }: LibraryToolsSectionProps) {
 
           {/* Reader Tips */}
           <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-              <BookOpen size={14} />
+            <h3 className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-2 uppercase tracking-wide">
+              <BookOpen size={12} />
               Reader Tips
             </h3>
-            <div className="space-y-2.5 text-sm text-muted-foreground">
-              <div className="flex items-start gap-2">
-                <Search size={14} className="mt-0.5 flex-shrink-0" />
-                <span>Use <strong className="text-foreground">Find</strong> to search within any story</span>
+            <div className="space-y-1.5 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Search size={12} className="flex-shrink-0 text-primary/70" />
+                <span><strong className="text-foreground">Find</strong> to search within any story</span>
               </div>
-              <div className="flex items-start gap-2">
-                <List size={14} className="mt-0.5 flex-shrink-0" />
-                <span><strong className="text-foreground">Chapters</strong> navigation for long stories</span>
+              <div className="flex items-center gap-2">
+                <List size={12} className="flex-shrink-0 text-primary/70" />
+                <span><strong className="text-foreground">Chapters</strong> for long stories</span>
               </div>
-              <div className="flex items-start gap-2">
-                <Volume2 size={14} className="mt-0.5 flex-shrink-0" />
-                <span><strong className="text-foreground">Read to me</strong> for hands-free listening</span>
+              <div className="flex items-center gap-2">
+                <Volume2 size={12} className="flex-shrink-0 text-primary/70" />
+                <span><strong className="text-foreground">Read to me</strong> for hands-free</span>
               </div>
-              <div className="flex items-start gap-2">
-                <Focus size={14} className="mt-0.5 flex-shrink-0" />
-                <span><strong className="text-foreground">Focus mode</strong> for distraction-free reading</span>
+              <div className="flex items-center gap-2">
+                <Focus size={12} className="flex-shrink-0 text-primary/70" />
+                <span><strong className="text-foreground">Focus mode</strong> to read distraction-free</span>
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Story count footer */}
-        <div className="mt-8 pt-6 border-t border-border/50 text-center">
-          <p className="text-sm text-muted-foreground">
-            <span className="text-foreground font-medium">{stories.length}</span> stories in the library
-          </p>
         </div>
       </div>
     </section>
