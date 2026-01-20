@@ -1,0 +1,18 @@
+{
+  "name": "PagePortals",
+  "short_name": "PagePortals",
+  "description": "A Netflix-Style Library of AI-Written Novellas",
+  "icons": [
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "theme_color": "#0f1318",
+  "background_color": "#0f1318",
+  "display": "standalone",
+  "start_url": "/",
+  "scope": "/"
+}
