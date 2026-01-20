@@ -258,7 +258,7 @@ const Index = () => {
       <LibraryToolsSection stories={stories} />
 
       {/* Footer */}
-      <Footer />
+      <Footer storyCount={stories.length} />
     </div>
   );
 };

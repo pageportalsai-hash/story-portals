@@ -66,12 +66,13 @@ interface SearchMatch {
   originalHTML: string;
 }
 
-// Voices to EXCLUDE (novelty/sound effects)
+// Voices to EXCLUDE (novelty/sound effects/robotic)
 const EXCLUDED_VOICE_KEYWORDS = [
   'bad news', 'bells', 'boing', 'bubbles', 'cellos', 'trinoids', 'whisper',
   'hysterical', 'deranged', 'wobble', 'organ', 'zarvox', 'bahh', 'albert',
   'jester', 'good news', 'pipe organ', 'superstar', 'ralph', 'kathy',
-  'junior', 'bruce', 'fred', 'princess', 'agnes', 'vicki'
+  'junior', 'bruce', 'fred', 'princess', 'agnes', 'vicki', 'eddy', 'novelty',
+  'sound effect', 'sfx', 'test', 'grandma', 'grandpa', 'whispered'
 ];
 
 // Voice scoring heuristic for narration quality
@@ -842,7 +843,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
                     <SelectItem value="auto" className="text-xs font-medium">
-                      Best Narrator (Auto)
+                      Recommended
                     </SelectItem>
                     {narrationVoices.slice(0, 10).map((v) => (
                       <SelectItem key={v.name} value={v.name} className="text-xs">
@@ -937,11 +938,11 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
         )}
       </div>
 
-      {/* Voice quality helper note */}
+      {/* Voice quality hint - only show on desktop */}
       {ttsSupported && ttsState === 'idle' && (
-        <div className="px-3 pb-1.5 -mt-0.5">
-          <p className="text-[10px] text-muted-foreground/60">
-            Voice quality varies by browser. Try Edge or Safari for best results.
+        <div className="hidden md:block px-3 pb-1.5 -mt-0.5">
+          <p className="text-[10px] text-muted-foreground/50">
+            Tip: Edge or Safari often have the best narrator voices
           </p>
         </div>
       )}
