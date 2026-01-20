@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useLibrary } from '@/hooks/useStories';
 import { Header } from '@/components/Header';
 import { UnifiedHero } from '@/components/UnifiedHero';
@@ -74,9 +74,21 @@ function seededShuffle<T>(array: T[], seed: number): T[] {
   return result;
 }
 
+// Dev-only performance logging
+const IS_DEV = import.meta.env.DEV;
+const perfMark = (name: string) => {
+  if (IS_DEV && typeof performance !== 'undefined') {
+    performance.mark(name);
+    console.log(`[Perf] ${name}:`, performance.now().toFixed(1) + 'ms');
+  }
+};
+
 const Index = () => {
+  perfMark('Index:render-start');
+  
   const { stories, loading, error } = useLibrary();
   const [lastRead, setLastRead] = useState<LastReadV2 | null>(null);
+  const [showDeferredRows, setShowDeferredRows] = useState(false);
 
   useEffect(() => {
     const refresh = () => setLastRead(readLastRead());
@@ -98,6 +110,30 @@ const Index = () => {
       window.removeEventListener('storage', onStorage);
     };
   }, []);
+
+  // Progressive render: defer lower-priority rows until after first paint
+  useEffect(() => {
+    if (!stories.length) return;
+    
+    perfMark('Index:above-fold-painted');
+    
+    // Use requestIdleCallback if available, else setTimeout
+    const defer = typeof requestIdleCallback !== 'undefined' 
+      ? requestIdleCallback 
+      : (cb: () => void) => setTimeout(cb, 150);
+    
+    defer(() => {
+      setShowDeferredRows(true);
+      perfMark('Index:deferred-rows-rendered');
+    });
+  }, [stories.length]);
+
+  // Log when library loads
+  useEffect(() => {
+    if (!loading && stories.length > 0) {
+      perfMark('Index:library-loaded');
+    }
+  }, [loading, stories.length]);
 
   // Organize stories into categories - memoized for performance
   const categories = useMemo(() => {
@@ -216,7 +252,7 @@ const Index = () => {
       {/* Continue Reading Row */}
       {showContinueReading && <ContinueReadingRow stories={stories} />}
 
-      {/* Content Rows */}
+      {/* Content Rows - Above the fold (always render) */}
       <main className="relative z-10 pb-8">
         {/* Most Read - only show if user has history */}
         {categories.mostRead.length > 0 && (
@@ -227,37 +263,42 @@ const Index = () => {
           <RowCarousel title="Trending Now" stories={categories.trending} />
         </div>
 
-        {categories.newReleases.length > 0 && (
-          <RowCarousel title="New Releases" stories={categories.newReleases} />
-        )}
+        {/* Deferred rows - render after first paint for performance */}
+        {showDeferredRows && (
+          <>
+            {categories.newReleases.length > 0 && (
+              <RowCarousel title="New Releases" stories={categories.newReleases} />
+            )}
 
-        {categories.shortReads.length > 0 && (
-          <RowCarousel title="Short Reads" stories={categories.shortReads} subtitle="Under 25 min" />
-        )}
+            {categories.shortReads.length > 0 && (
+              <RowCarousel title="Short Reads" stories={categories.shortReads} subtitle="Under 25 min" />
+            )}
 
-        {categories.longReads.length > 0 && (
-          <RowCarousel title="Long Reads" stories={categories.longReads} subtitle="45+ min" />
-        )}
+            {categories.longReads.length > 0 && (
+              <RowCarousel title="Long Reads" stories={categories.longReads} subtitle="45+ min" />
+            )}
 
-        {categories.sciFi.length > 0 && (
-          <RowCarousel title="Science Fiction" stories={categories.sciFi} />
-        )}
+            {categories.sciFi.length > 0 && (
+              <RowCarousel title="Science Fiction" stories={categories.sciFi} />
+            )}
 
-        {categories.noir.length > 0 && (
-          <RowCarousel title="Noir & Mystery" stories={categories.noir} />
-        )}
+            {categories.noir.length > 0 && (
+              <RowCarousel title="Noir & Mystery" stories={categories.noir} />
+            )}
 
-        {categories.literary.length > 0 && (
-          <RowCarousel title="Literary Fiction" stories={categories.literary} />
-        )}
+            {categories.literary.length > 0 && (
+              <RowCarousel title="Literary Fiction" stories={categories.literary} />
+            )}
 
-        <RowCarousel title="All Stories" stories={categories.all} size="small" />
+            <RowCarousel title="All Stories" stories={categories.all} size="small" />
+          </>
+        )}
       </main>
 
       {/* Library Tools Section */}
       <LibraryToolsSection stories={stories} />
 
-      {/* Footer */}
+      {/* Footer - integrated with ad slot area */}
       <Footer storyCount={stories.length} />
     </div>
   );

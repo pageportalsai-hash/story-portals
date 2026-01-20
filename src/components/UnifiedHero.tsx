@@ -30,17 +30,17 @@ export function UnifiedHero({ story }: UnifiedHeroProps) {
       <div className="h-[calc(3.5rem+env(safe-area-inset-top)+3rem)] md:h-[calc(4rem+env(safe-area-inset-top))]" />
       
       <section className="relative min-h-[calc(90vh-7rem)] md:min-h-[calc(100vh-4rem)] w-full overflow-hidden -mt-[calc(3.5rem+env(safe-area-inset-top)+3rem)] md:-mt-[calc(4rem+env(safe-area-inset-top))]">
-        {/* Background Image */}
+        {/* Background Image - brighter, more visible */}
         <div className="absolute inset-0">
           <img
             src={imagePath}
             alt={story.title}
-            className="w-full h-full object-cover"
+            loading="eager"
+            className="w-full h-full object-cover scale-105"
           />
-          {/* Strong gradient overlays for readability */}
-          <div className="absolute inset-0 bg-gradient-to-b from-background/90 via-background/70 to-background" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background/60 via-background/40 to-background/60" />
-          <div className="absolute inset-0 bg-background/30" />
+          {/* Lighter gradient overlays - let more art show through */}
+          <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/50 to-background" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background/40 via-transparent to-background/40" />
         </div>
 
         {/* Content Container - extra top padding on mobile for header+search */}

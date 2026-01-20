@@ -66,13 +66,24 @@ interface SearchMatch {
   originalHTML: string;
 }
 
-// Voices to EXCLUDE (novelty/sound effects/robotic)
+// Voices to EXCLUDE (novelty/sound effects/robotic/silly)
 const EXCLUDED_VOICE_KEYWORDS = [
+  // Apple novelty voices
   'bad news', 'bells', 'boing', 'bubbles', 'cellos', 'trinoids', 'whisper',
   'hysterical', 'deranged', 'wobble', 'organ', 'zarvox', 'bahh', 'albert',
   'jester', 'good news', 'pipe organ', 'superstar', 'ralph', 'kathy',
-  'junior', 'bruce', 'fred', 'princess', 'agnes', 'vicki', 'eddy', 'novelty',
-  'sound effect', 'sfx', 'test', 'grandma', 'grandpa', 'whispered'
+  'junior', 'bruce', 'fred', 'princess', 'agnes', 'vicki', 'eddy',
+  'grandma', 'grandpa', 'whispered',
+  // Generic exclusions  
+  'novelty', 'sound effect', 'sfx', 'test', 'demo',
+  // More Apple oddities
+  'alex', 'victoria', 'xander', 'yelda', 'zosia', 'damayanti',
+  // Foreign language indicators (we only want English)
+  'mandarin', 'cantonese', 'hindi', 'japanese', 'korean', 'arabic',
+  'russian', 'polish', 'thai', 'vietnamese', 'indonesian', 'malay',
+  'czech', 'danish', 'dutch', 'finnish', 'greek', 'hebrew', 'hungarian',
+  'norwegian', 'portuguese', 'romanian', 'slovak', 'swedish', 'turkish',
+  'ukrainian', 'catalan', 'croatian', 'french', 'german', 'italian', 'spanish'
 ];
 
 // Voice scoring heuristic for narration quality
@@ -172,8 +183,34 @@ function formatVoiceName(voice: SpeechSynthesisVoice): string {
   return name + langSuffix;
 }
 
+// Split text into smaller chunks for smoother, less robotic playback
+function splitIntoSentences(text: string): string[] {
+  // Split by sentence-ending punctuation but keep the punctuation
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+  const chunks: string[] = [];
+  let current = '';
+  
+  for (const sentence of sentences) {
+    const trimmed = sentence.trim();
+    if (!trimmed) continue;
+    
+    // Keep chunks between 50-300 chars for natural pacing
+    if (current.length + trimmed.length < 300) {
+      current += (current ? ' ' : '') + trimmed;
+    } else {
+      if (current) chunks.push(current);
+      current = trimmed;
+    }
+  }
+  if (current) chunks.push(current);
+  
+  return chunks.length > 0 ? chunks : [text.trim()];
+}
+
 function preprocessTextForSpeech(text: string): string {
   let processed = text.trim().replace(/\s+/g, ' ');
+  // Remove markdown artifacts
+  processed = processed.replace(/[*_#`]/g, '');
   if (processed.length > 0 && !/[.?!]$/.test(processed)) {
     processed += '.';
   }
@@ -468,8 +505,10 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     const processedText = preprocessTextForSpeech(block.text);
 
     const utterance = new SpeechSynthesisUtterance(processedText);
-    utterance.rate = 1;
+    // Slightly slower rate for better comprehension
+    utterance.rate = 0.95;
     utterance.pitch = 1;
+    utterance.volume = 1;
 
     const voice = getSelectedVoice();
     if (voice) {
@@ -477,9 +516,10 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     }
 
     utterance.onend = () => {
+      // Shorter gap between blocks for smoother flow
       setTimeout(() => {
         speakBlock(index + 1);
-      }, 120);
+      }, 80);
     };
     utterance.onerror = (e) => {
       if (e.error !== 'interrupted') {

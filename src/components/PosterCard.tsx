@@ -205,15 +205,16 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
     >
       <div
         ref={cardRef}
-        className={`poster-card ${sizeClasses[size]} relative cursor-pointer`}
+        className={`poster-card ${sizeClasses[size]} relative cursor-pointer group/card`}
       >
-        {/* Background Image - lazy loaded */}
+        {/* Background Image - lazy loaded with decoding async */}
         {isVisible && (
           <img
             src={imagePath}
             alt={story.title}
             loading={priority ? 'eager' : 'lazy'}
-            className="absolute inset-0 w-full h-full object-cover"
+            decoding="async"
+            className="absolute inset-0 w-full h-full object-cover transition-all duration-300 group-hover/card:scale-105 group-hover/card:saturate-110"
           />
         )}
 
@@ -233,27 +234,26 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
           />
         )}
 
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 card-overlay opacity-100 group-hover:opacity-50 transition-opacity duration-300" />
-        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-background via-background/70 to-transparent pointer-events-none opacity-100 group-hover:opacity-60 transition-opacity duration-300" />
+        {/* Reduced Gradient Overlay - less blocking, more art visible */}
+        <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-80 group-hover/card:opacity-60 transition-opacity duration-300" />
 
         {/* Content Overlay */}
         <div
           className={`absolute inset-0 flex flex-col justify-end p-3 transition-all duration-300 ${
-            showOverlay ? 'bg-background/60' : ''
+            showOverlay ? 'bg-background/40' : ''
           }`}
         >
           {/* Genre Chip */}
-          <span className="genre-chip self-start mb-auto mt-2">{story.genre}</span>
+          <span className="genre-chip self-start mb-auto mt-2 opacity-90">{story.genre}</span>
 
-          {/* Title */}
-          <h3 className="font-display text-sm md:text-base font-semibold text-foreground line-clamp-2 mb-1">
+          {/* Title - with subtle text shadow for readability */}
+          <h3 className="font-display text-sm md:text-base font-semibold text-foreground line-clamp-2 mb-1 drop-shadow-md">
             {story.title}
           </h3>
 
           {/* Synopsis (on hover/preview) */}
           <p
-            className={`text-xs text-muted-foreground line-clamp-3 transition-all duration-300 ${
+            className={`text-xs text-foreground/80 line-clamp-3 transition-all duration-300 drop-shadow-sm ${
               showOverlay ? 'opacity-100 max-h-20' : 'opacity-0 max-h-0'
             }`}
           >
@@ -266,12 +266,12 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
               showOverlay ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
             }`}
           >
-            <span className="inline-flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full">
+            <span className="inline-flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full shadow-lg">
               <Play size={12} fill="currentColor" />
               {isPreviewing ? 'Tap to Read' : 'Read'}
             </span>
             {story.readingTimeMins && (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-foreground/70 drop-shadow-sm">
                 {story.readingTimeMins} min
               </span>
             )}
@@ -280,10 +280,13 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
 
         {/* Video indicator */}
         {story.posterVideo && !isPreviewing && (
-          <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-background/80 flex items-center justify-center">
+          <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-background/70 backdrop-blur-sm flex items-center justify-center shadow-md">
             <Play size={12} className="text-primary" fill="currentColor" />
           </div>
         )}
+
+        {/* Hover glow effect */}
+        <div className="absolute inset-0 rounded-lg opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 pointer-events-none ring-1 ring-primary/30 shadow-[0_0_20px_rgba(245,158,11,0.15)]" />
       </div>
     </Link>
   );
