@@ -19,7 +19,6 @@ import {
   ChevronUp,
   ChevronDown,
   Clock,
-  Loader2,
 } from 'lucide-react';
 import { ReaderSettings } from '@/hooks/useReaderSettings';
 import {
@@ -37,11 +36,10 @@ import {
 
 const PROGRESS_KEY_PREFIX = 'pageportals:progress:';
 const VOICE_KEY = 'pageportals:ttsVoiceName';
-const ENGINE_KEY = 'pageportals:ttsEngine';
-const WPM = 220; // Words per minute for time estimate
+const BEST_VOICE_CACHE_KEY = 'pageportals:ttsBestVoice';
+const WPM = 220;
 
 type TtsStartMode = 'top' | 'here' | 'last';
-type TtsEngine = 'system' | 'narrator';
 
 interface TopReaderBarProps {
   settings: ReaderSettings;
@@ -68,72 +66,113 @@ interface SearchMatch {
   originalHTML: string;
 }
 
-// Voice scoring heuristic
+// Voices to EXCLUDE (novelty/sound effects)
+const EXCLUDED_VOICE_KEYWORDS = [
+  'bad news', 'bells', 'boing', 'bubbles', 'cellos', 'trinoids', 'whisper',
+  'hysterical', 'deranged', 'wobble', 'organ', 'zarvox', 'bahh', 'albert',
+  'jester', 'good news', 'pipe organ', 'superstar', 'ralph', 'kathy',
+  'junior', 'bruce', 'fred', 'princess', 'agnes', 'vicki'
+];
+
+// Voice scoring heuristic for narration quality
 function scoreVoice(voice: SpeechSynthesisVoice): number {
   let score = 0;
   const name = voice.name.toLowerCase();
   const uri = voice.voiceURI.toLowerCase();
   const combined = `${name} ${uri}`;
 
-  // Language bonuses
-  if (voice.lang === 'en-US') score += 30;
-  else if (voice.lang.startsWith('en-')) score += 15;
+  // Exclude novelty voices entirely
+  if (EXCLUDED_VOICE_KEYWORDS.some(kw => combined.includes(kw))) {
+    return -1000;
+  }
 
-  // Tier A keywords (+100 each)
+  // Language bonuses
+  if (voice.lang === 'en-US') score += 50;
+  else if (voice.lang === 'en-GB') score += 45;
+  else if (voice.lang.startsWith('en-')) score += 30;
+  else return -500; // Non-English penalty
+
+  // Tier A keywords - high quality voices (+100 each)
   const tierA = ['neural', 'natural', 'online', 'enhanced', 'premium'];
   tierA.forEach((kw) => {
     if (combined.includes(kw)) score += 100;
   });
 
-  // Tier B keywords (+40 each)
-  const tierB = ['microsoft', 'google', 'siri', 'apple', 'azure', 'aria', 'jenny', 'guy'];
+  // Tier B keywords - good quality (+40 each)
+  const tierB = ['microsoft', 'google', 'siri', 'apple', 'azure', 'aria', 'jenny', 'guy', 'samantha', 'daniel', 'karen', 'moira', 'fiona', 'tessa'];
   tierB.forEach((kw) => {
     if (combined.includes(kw)) score += 40;
   });
 
-  // Tier C keywords (+20 each)
-  const tierC = ['united states', 'english (united states)', 'en-us'];
+  // Tier C keywords - acceptable (+15 each)
+  const tierC = ['united states', 'united kingdom', 'english (united states)', 'english (united kingdom)', 'en-us', 'en-gb'];
   tierC.forEach((kw) => {
-    if (combined.includes(kw)) score += 20;
+    if (combined.includes(kw)) score += 15;
   });
 
   // Penalty keywords (-60 each)
-  const penalties = ['default', 'compact', 'basic', 'legacy', 'espeak'];
+  const penalties = ['compact', 'basic', 'legacy', 'espeak'];
   penalties.forEach((kw) => {
     if (combined.includes(kw)) score -= 60;
   });
 
-  // Extra penalty for "default" in name
-  if (name.includes('default')) score -= 25;
-
   return score;
 }
 
+// Filter to only narration-capable English voices
+function getNarrationVoices(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
+  return voices
+    .filter(v => {
+      const name = v.name.toLowerCase();
+      const uri = v.voiceURI.toLowerCase();
+      const combined = `${name} ${uri}`;
+      
+      // Must be English
+      if (!v.lang.startsWith('en-')) return false;
+      
+      // Exclude novelty voices
+      if (EXCLUDED_VOICE_KEYWORDS.some(kw => combined.includes(kw))) return false;
+      
+      return true;
+    })
+    .sort((a, b) => scoreVoice(b) - scoreVoice(a));
+}
+
 function getBestVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
-  if (voices.length === 0) return null;
-  
-  // Filter to English voices first
-  const englishVoices = voices.filter((v) => v.lang.startsWith('en-'));
-  const candidateVoices = englishVoices.length > 0 ? englishVoices : voices;
-  
-  let best = candidateVoices[0];
-  let bestScore = scoreVoice(best);
-
-  for (let i = 1; i < candidateVoices.length; i++) {
-    const score = scoreVoice(candidateVoices[i]);
-    if (score > bestScore) {
-      best = candidateVoices[i];
-      bestScore = score;
-    }
+  const narrationVoices = getNarrationVoices(voices);
+  if (narrationVoices.length === 0) {
+    // Fallback to any English voice
+    const englishVoices = voices.filter(v => v.lang.startsWith('en-'));
+    return englishVoices[0] || voices[0] || null;
   }
+  return narrationVoices[0];
+}
 
-  return best;
+// Format voice name for display
+function formatVoiceName(voice: SpeechSynthesisVoice): string {
+  let name = voice.name;
+  
+  // Remove common prefixes
+  name = name.replace(/^Microsoft\s+/i, '');
+  name = name.replace(/^Google\s+/i, '');
+  name = name.replace(/^Apple\s+/i, '');
+  
+  // Add language indicator
+  const langSuffix = voice.lang === 'en-GB' ? ' (UK)' 
+    : voice.lang === 'en-US' ? ' (US)' 
+    : voice.lang === 'en-AU' ? ' (AU)'
+    : '';
+  
+  // Truncate if too long
+  if (name.length > 20) {
+    name = name.slice(0, 18) + '…';
+  }
+  
+  return name + langSuffix;
 }
 
 function preprocessTextForSpeech(text: string): string {
-  // Trim and collapse multiple spaces
   let processed = text.trim().replace(/\s+/g, ' ');
-  // Ensure ends with punctuation
   if (processed.length > 0 && !/[.?!]$/.test(processed)) {
     processed += '.';
   }
@@ -186,17 +225,10 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
   const [startMode, setStartMode] = useState<TtsStartMode>('top');
   const [savedTtsIndex, setSavedTtsIndex] = useState<number | null>(null);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [narrationVoices, setNarrationVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState<string>('auto');
   const [tocEntries, setTocEntries] = useState<TocEntry[]>([]);
   const [tocOpen, setTocOpen] = useState(false);
-  
-  // Engine state
-  const [ttsEngine, setTtsEngine] = useState<TtsEngine>(() => {
-    if (typeof window === 'undefined') return 'system';
-    return (localStorage.getItem(ENGINE_KEY) as TtsEngine) || 'system';
-  });
-  const [narratorLoading, setNarratorLoading] = useState(false);
-  const [narratorError, setNarratorError] = useState<string | null>(null);
   
   // Search state
   const [searchOpen, setSearchOpen] = useState(false);
@@ -226,6 +258,10 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
       const availableVoices = window.speechSynthesis.getVoices();
       setVoices(availableVoices);
       
+      // Filter to narration-capable voices
+      const narration = getNarrationVoices(availableVoices);
+      setNarrationVoices(narration);
+      
       // Load saved voice preference
       const savedVoice = localStorage.getItem(VOICE_KEY);
       if (savedVoice && availableVoices.find((v) => v.name === savedVoice)) {
@@ -249,7 +285,6 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     }
     const saved = readSavedTtsIndex(slug);
     setSavedTtsIndex(saved);
-    // Default to 'last' if saved audio exists
     if (saved !== null && saved > 0) {
       setStartMode('last');
     } else {
@@ -269,7 +304,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
       const text = el.textContent || '';
       const words = text.trim().split(/\s+/).filter(Boolean).length;
       setTotalWords(words);
-    }, 500);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [contentRef, slug]);
@@ -282,7 +317,6 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
       return;
     }
 
-    // Wait a bit for content to render
     const timer = setTimeout(() => {
       const headings = el.querySelectorAll('h1, h2, h3') as NodeListOf<HTMLElement>;
       const entries: TocEntry[] = [];
@@ -291,7 +325,6 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
         const text = (heading.textContent || '').trim();
         if (text.length === 0) return;
 
-        // Generate or use existing id
         let id = heading.id;
         if (!id) {
           id = slugify(text, index);
@@ -303,7 +336,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
       });
 
       setTocEntries(entries);
-    }, 500);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [contentRef, slug]);
@@ -319,7 +352,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     };
   }, [slug]);
 
-  // Listen for user scroll to temporarily disable auto-scroll
+  // Listen for user scroll
   useEffect(() => {
     const container = readerRef?.current;
     if (!container) return;
@@ -363,13 +396,11 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     const container = readerRef?.current;
     if (!container) return;
 
-    // Skip auto-scroll if user scrolled recently (within 5 seconds)
     if (Date.now() - lastUserScrollRef.current < 5000) return;
 
     const rect = el.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
 
-    // Only scroll if block is out of view
     if (rect.top < containerRect.top + 60 || rect.bottom > containerRect.bottom - 80) {
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
@@ -399,7 +430,6 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
 
     for (let i = 0; i < blocks.length; i++) {
       const rect = blocks[i].el.getBoundingClientRect();
-      // Block is visible if its top is within the container viewport
       if (rect.top >= containerRect.top && rect.top < containerRect.bottom) {
         return i;
       }
@@ -427,36 +457,30 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     const block = blocks[index];
     currentIndexRef.current = index;
 
-    // Highlight and auto-scroll
     highlightBlock(block.el);
     autoScrollToBlock(block.el);
 
-    // Save TTS position
     if (slug) {
       saveTtsIndex(slug, index);
     }
 
-    // Preprocess text for better pacing
     const processedText = preprocessTextForSpeech(block.text);
 
     const utterance = new SpeechSynthesisUtterance(processedText);
     utterance.rate = 1;
     utterance.pitch = 1;
 
-    // Set voice
     const voice = getSelectedVoice();
     if (voice) {
       utterance.voice = voice;
     }
 
     utterance.onend = () => {
-      // Short pause between blocks for pacing
       setTimeout(() => {
         speakBlock(index + 1);
-      }, 150);
+      }, 120);
     };
     utterance.onerror = (e) => {
-      // Ignore 'interrupted' errors (happens on cancel)
       if (e.error !== 'interrupted') {
         setTtsState('idle');
         clearHighlight();
@@ -479,7 +503,6 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
   }, [startMode, savedTtsIndex, findFirstVisibleBlockIndex]);
 
   const startPlayback = useCallback(() => {
-    // Build blocks list
     const blocks = buildBlocks();
     if (blocks.length === 0) return;
 
@@ -502,23 +525,8 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
       return;
     }
 
-    // If using narrator engine, show info message and fall back to system
-    if (ttsEngine === 'narrator') {
-      setNarratorLoading(true);
-      // Simulate checking for narrator availability (experimental placeholder)
-      setTimeout(() => {
-        setNarratorLoading(false);
-        setNarratorError('Narrator voice is experimental and requires additional setup. Using system voice.');
-        setTtsEngine('system');
-        localStorage.setItem(ENGINE_KEY, 'system');
-      }, 500);
-      // Still start playback immediately with system voice
-      startPlayback();
-      return;
-    }
-
     startPlayback();
-  }, [ttsSupported, ttsState, ttsEngine, startPlayback]);
+  }, [ttsSupported, ttsState, startPlayback]);
 
   const handleTtsPause = useCallback(() => {
     if (ttsState === 'playing') {
@@ -543,12 +551,6 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     }
   }, []);
 
-  const handleEngineChange = useCallback((engine: TtsEngine) => {
-    setTtsEngine(engine);
-    localStorage.setItem(ENGINE_KEY, engine);
-    setNarratorError(null);
-  }, []);
-
   const handleChapterClick = useCallback((id: string) => {
     const heading = contentRef.current?.querySelector(`#${id}`) as HTMLElement;
     if (heading) {
@@ -559,7 +561,6 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
 
   // Search functionality
   const clearSearchHighlights = useCallback(() => {
-    // Restore original HTML for all matches
     searchMatches.forEach(({ el, originalHTML }) => {
       el.innerHTML = originalHTML;
     });
@@ -582,18 +583,14 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     textElements.forEach((textEl) => {
       const text = textEl.innerHTML;
       if (regex.test(text)) {
-        // Save original HTML
         newMatches.push({ el: textEl, originalHTML: text });
-        // Replace with highlighted version
         textEl.innerHTML = text.replace(regex, '<mark class="search-hit">$1</mark>');
       }
-      // Reset regex lastIndex
       regex.lastIndex = 0;
     });
 
     setSearchMatches(newMatches);
     
-    // Scroll to first match
     if (newMatches.length > 0) {
       setActiveMatchIndex(0);
       const firstMark = el.querySelector('mark.search-hit');
@@ -610,14 +607,11 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     const marks = contentRef.current.querySelectorAll('mark.search-hit');
     if (marks.length === 0) return;
 
-    // Remove active from all
     marks.forEach((m) => m.classList.remove('search-hit-active'));
 
-    // Wrap index
     const newIndex = ((index % marks.length) + marks.length) % marks.length;
     setActiveMatchIndex(newIndex);
 
-    // Add active to current and scroll
     const activeMark = marks[newIndex];
     if (activeMark) {
       activeMark.classList.add('search-hit-active');
@@ -828,7 +822,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
           </Popover>
         )}
 
-        {/* Time Left - show when we have word count */}
+        {/* Time Left */}
         {totalWords > 0 && progressPct < 0.98 && (
           <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
             <Clock size={12} />
@@ -839,44 +833,22 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
         {/* TTS Controls */}
         {ttsSupported && (
           <div className="flex items-center gap-1 ml-auto">
-            {/* Engine selector - only show when idle */}
-            {ttsState === 'idle' && (
-              <div className="hidden xl:block">
-                <Select value={ttsEngine} onValueChange={(v) => handleEngineChange(v as TtsEngine)}>
-                  <SelectTrigger className="h-7 text-xs w-28 bg-secondary/80 border-0">
-                    <SelectValue placeholder="Engine" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="system" className="text-xs">
-                      System
-                    </SelectItem>
-                    <SelectItem value="narrator" className="text-xs">
-                      Narrator ✨
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Voice selector - only show when idle, system engine, and voices exist */}
-            {ttsState === 'idle' && ttsEngine === 'system' && voices.length > 1 && (
+            {/* Voice selector - only show when idle and narration voices exist */}
+            {ttsState === 'idle' && narrationVoices.length > 0 && (
               <div className="hidden lg:block">
                 <Select value={selectedVoiceName} onValueChange={handleVoiceChange}>
-                  <SelectTrigger className="h-7 text-xs w-32 bg-secondary/80 border-0">
+                  <SelectTrigger className="h-7 text-xs w-36 bg-secondary/80 border-0">
                     <SelectValue placeholder="Voice" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
-                    <SelectItem value="auto" className="text-xs">
-                      Best (Auto)
+                    <SelectItem value="auto" className="text-xs font-medium">
+                      Best Narrator (Auto)
                     </SelectItem>
-                    {voices
-                      .filter((v) => v.lang.startsWith('en-'))
-                      .slice(0, 15)
-                      .map((v) => (
-                        <SelectItem key={v.name} value={v.name} className="text-xs">
-                          {v.name.replace('Microsoft ', '').replace('Google ', '').slice(0, 25)}
-                        </SelectItem>
-                      ))}
+                    {narrationVoices.slice(0, 10).map((v) => (
+                      <SelectItem key={v.name} value={v.name} className="text-xs">
+                        {formatVoiceName(v)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -920,13 +892,8 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
                 onClick={handleTtsPlay}
                 className={btnClass}
                 title="Read to me"
-                disabled={narratorLoading}
               >
-                {narratorLoading ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Volume2 size={14} />
-                )}
+                <Volume2 size={14} />
                 <span className="hidden sm:inline">Read to me</span>
               </button>
             )}
@@ -970,20 +937,11 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
         )}
       </div>
 
-      {/* Narrator error message */}
-      {narratorError && (
-        <div className="px-3 pb-2 -mt-1">
-          <p className="text-[10px] text-amber-500/80">
-            {narratorError}
-          </p>
-        </div>
-      )}
-
-      {/* Voice quality helper note - show when TTS is available but idle */}
-      {ttsSupported && ttsState === 'idle' && !narratorError && (
-        <div className="px-3 pb-2 -mt-1">
-          <p className="text-[10px] text-muted-foreground/60 hidden lg:block">
-            Voice quality depends on your browser/OS. For better free voices, try Microsoft Edge or install enhanced system voices.
+      {/* Voice quality helper note */}
+      {ttsSupported && ttsState === 'idle' && (
+        <div className="px-3 pb-1.5 -mt-0.5">
+          <p className="text-[10px] text-muted-foreground/60">
+            Voice quality varies by browser. Try Edge or Safari for best results.
           </p>
         </div>
       )}

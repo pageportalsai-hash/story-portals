@@ -19,6 +19,7 @@ const getIsTouch = () =>
 export function PosterCard({ story, size = 'medium', priority = false }: PosterCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -33,7 +34,17 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
     large: 'w-56 h-80 md:w-64 md:h-96',
   };
 
-  // Intersection observer for lazy loading
+  const imagePath = story.posterImage.startsWith('/')
+    ? `${BASE_PATH}${story.posterImage.slice(1)}`
+    : `${BASE_PATH}stories/${story.slug}/${story.posterImage}`;
+
+  const videoPath = story.posterVideo
+    ? story.posterVideo.startsWith('/')
+      ? `${BASE_PATH}${story.posterVideo.slice(1)}`
+      : `${BASE_PATH}stories/${story.slug}/${story.posterVideo}`
+    : null;
+
+  // Intersection observer for visibility (lazy loading)
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -42,7 +53,7 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
           observer.disconnect();
         }
       },
-      { rootMargin: '100px' }
+      { rootMargin: '200px' }
     );
 
     if (cardRef.current) {
@@ -87,12 +98,11 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
     return () => window.removeEventListener('scroll', handleScroll);
   }, [isPreviewing, stopPreview]);
 
-  // Cancel preview on outside click (but ignore if a dialog is open)
+  // Cancel preview on outside click
   useEffect(() => {
     if (!isPreviewing) return;
 
     const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
-      // Ignore clicks when a dialog/modal is open
       if (document.querySelector('[role="dialog"][data-state="open"], [data-radix-dialog-content], [data-radix-alert-dialog-content]')) {
         return;
       }
@@ -109,11 +119,22 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
     };
   }, [isPreviewing, stopPreview]);
 
+  // Load video src ONLY when hovered/previewing AND visible - performance optimization
+  useEffect(() => {
+    if (!videoPath || !isVisible) return;
+    
+    const shouldLoadVideo = isHovered || isPreviewing;
+    
+    if (shouldLoadVideo && !videoReady) {
+      setVideoReady(true);
+    }
+  }, [isHovered, isPreviewing, isVisible, videoPath, videoReady]);
+
   // Handle video play/pause on hover (desktop only)
   useEffect(() => {
-    if (!videoRef.current || !story.posterVideo) return;
+    if (!videoRef.current || !story.posterVideo || !videoReady) return;
     const isTouch = getIsTouch();
-    if (isTouch) return; // Touch devices use tap behavior
+    if (isTouch) return;
 
     if (isHovered && isVisible) {
       videoRef.current.play().catch(() => {});
@@ -121,34 +142,22 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
     }
-  }, [isHovered, isVisible, story.posterVideo]);
-
-  const imagePath = story.posterImage.startsWith('/')
-    ? `${BASE_PATH}${story.posterImage.slice(1)}`
-    : `${BASE_PATH}stories/${story.slug}/${story.posterImage}`;
-
-  const videoPath = story.posterVideo
-    ? story.posterVideo.startsWith('/')
-      ? `${BASE_PATH}${story.posterVideo.slice(1)}`
-      : `${BASE_PATH}stories/${story.slug}/${story.posterVideo}`
-    : null;
+  }, [isHovered, isVisible, story.posterVideo, videoReady]);
 
   const handleClick = (e: React.MouseEvent) => {
     const isTouch = getIsTouch();
 
     if (isTouch && videoPath) {
       if (!isPreviewing) {
-        // First tap: start preview
         e.preventDefault();
         e.stopPropagation();
         setIsPreviewing(true);
+        setVideoReady(true);
 
-        // Dispatch event so other cards close their preview
         window.dispatchEvent(
           new CustomEvent('pageportals:preview:open', { detail: { slug: story.slug } })
         );
 
-        // iOS requires play() in the same call stack as user gesture
         requestAnimationFrame(() => {
           const v = videoRef.current;
           if (!v) return;
@@ -157,17 +166,13 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
           v.play().catch(() => {});
         });
 
-        // Auto-timeout after 4 seconds
         previewTimeoutRef.current = window.setTimeout(() => {
           stopPreview();
         }, 4000);
 
         return;
       }
-      // Second tap while previewing: navigate
-      // Let Link handle navigation normally
     }
-    // On desktop, let Link handle navigation normally
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -176,7 +181,6 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
     }
   };
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (previewTimeoutRef.current) {
@@ -203,7 +207,7 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
         ref={cardRef}
         className={`poster-card ${sizeClasses[size]} relative cursor-pointer`}
       >
-        {/* Background Image */}
+        {/* Background Image - lazy loaded */}
         {isVisible && (
           <img
             src={imagePath}
@@ -213,15 +217,15 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
           />
         )}
 
-        {/* Video Preview - always mounted for iOS, visibility via opacity */}
-        {videoPath && isVisible && (
+        {/* Video Preview - ONLY mount when needed for performance */}
+        {videoPath && videoReady && (
           <video
             ref={videoRef}
             src={videoPath}
             muted
             loop
             playsInline
-            preload="metadata"
+            preload="none"
             onLoadedData={() => setVideoLoaded(true)}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
               (isHovered && videoLoaded) || isPreviewing ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -229,7 +233,7 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
           />
         )}
 
-        {/* Gradient Overlay - softer on desktop hover */}
+        {/* Gradient Overlay */}
         <div className="absolute inset-0 card-overlay opacity-100 group-hover:opacity-50 transition-opacity duration-300" />
         <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-background via-background/70 to-transparent pointer-events-none opacity-100 group-hover:opacity-60 transition-opacity duration-300" />
 

@@ -7,9 +7,10 @@ interface RowCarouselProps {
   title: string;
   stories: StoryMeta[];
   size?: 'small' | 'medium' | 'large';
+  subtitle?: string;
 }
 
-export function RowCarousel({ title, stories, size = 'medium' }: RowCarouselProps) {
+export function RowCarousel({ title, stories, size = 'medium', subtitle }: RowCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -50,9 +51,14 @@ export function RowCarousel({ title, stories, size = 'medium' }: RowCarouselProp
   return (
     <section className="relative py-4 md:py-6">
       {/* Section Title */}
-      <h2 className="font-display text-xl md:text-2xl font-semibold text-foreground mb-4 px-4 md:px-12">
-        {title}
-      </h2>
+      <div className="flex items-baseline gap-3 mb-4 px-4 md:px-12">
+        <h2 className="font-display text-xl md:text-2xl font-semibold text-foreground">
+          {title}
+        </h2>
+        {subtitle && (
+          <span className="text-sm text-muted-foreground">{subtitle}</span>
+        )}
+      </div>
 
       {/* Carousel Container */}
       <div className="relative group">
