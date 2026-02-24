@@ -183,15 +183,22 @@ function formatVoiceName(voice: SpeechSynthesisVoice): string {
   return name + langSuffix;
 }
 
+// Abbreviation patterns that shouldn't trigger sentence splits
+const ABBREVIATIONS = /(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|Sgt|Lt|Col|Gen|Capt|Rev|Hon|Pres|Gov|Dept|Inc|Corp|Ltd|Co|vs|etc|al|approx|dept|est|fig|govt|misc|vol|no|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec|U\.S|U\.K)\./gi;
+
 // Split text into smaller chunks for smoother, less robotic playback
 function splitIntoSentences(text: string): string[] {
+  // Protect abbreviations from being split
+  const protected_ = text.replace(ABBREVIATIONS, (match) => match.replace(/\./g, '\u2024'));
+  
   // Split by sentence-ending punctuation but keep the punctuation
-  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+  const sentences = protected_.match(/[^.!?]+[.!?]+/g) || [protected_];
   const chunks: string[] = [];
   let current = '';
   
   for (const sentence of sentences) {
-    const trimmed = sentence.trim();
+    // Restore dots in abbreviations
+    const trimmed = sentence.trim().replace(/\u2024/g, '.');
     if (!trimmed) continue;
     
     // Keep chunks between 50-300 chars for natural pacing
@@ -512,8 +519,28 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     const sentences = splitIntoSentences(processedText);
     let sentenceIndex = 0;
 
+    // Chrome keepalive: Chrome kills speech after ~15s of continuous playback.
+    // We set up a periodic pause/resume to prevent this.
+    let keepAliveTimer: number | null = null;
+    const startKeepAlive = () => {
+      if (keepAliveTimer) return;
+      keepAliveTimer = window.setInterval(() => {
+        if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        }
+      }, 10000);
+    };
+    const stopKeepAlive = () => {
+      if (keepAliveTimer) {
+        clearInterval(keepAliveTimer);
+        keepAliveTimer = null;
+      }
+    };
+
     const speakNextSentence = () => {
       if (sentenceIndex >= sentences.length) {
+        stopKeepAlive();
         // Done with this block, move to next with a brief pause
         setTimeout(() => {
           speakBlock(index + 1);
@@ -537,12 +564,14 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
         setTimeout(speakNextSentence, 40);
       };
       utterance.onerror = (e) => {
+        stopKeepAlive();
         if (e.error !== 'interrupted') {
           setTtsState('idle');
           clearHighlight();
         }
       };
 
+      startKeepAlive();
       window.speechSynthesis.speak(utterance);
     };
 
@@ -900,7 +929,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
           <div className="flex items-center gap-1 ml-auto">
             {/* Voice selector - only show when idle and narration voices exist */}
             {ttsState === 'idle' && narrationVoices.length > 0 && (
-              <div className="hidden lg:block">
+              <div className="hidden lg:flex items-center gap-1">
                 <Select value={selectedVoiceName} onValueChange={handleVoiceChange}>
                   <SelectTrigger className="h-7 text-xs w-36 bg-secondary/80 border-0">
                     <SelectValue placeholder="Voice" />
@@ -916,6 +945,21 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
                     ))}
                   </SelectContent>
                 </Select>
+                <button
+                  onClick={() => {
+                    const voice = getSelectedVoice();
+                    window.speechSynthesis.cancel();
+                    const u = new SpeechSynthesisUtterance('The story begins on a quiet evening, under a sky full of stars.');
+                    u.rate = ttsRate;
+                    u.pitch = 1;
+                    if (voice) u.voice = voice;
+                    window.speechSynthesis.speak(u);
+                  }}
+                  className={btnClass}
+                  title="Preview voice"
+                >
+                  <Play size={10} fill="currentColor" />
+                </button>
               </div>
             )}
 
