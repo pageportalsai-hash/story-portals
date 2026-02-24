@@ -36,7 +36,7 @@ import {
 
 const PROGRESS_KEY_PREFIX = 'pageportals:progress:';
 const VOICE_KEY = 'pageportals:ttsVoiceName';
-const BEST_VOICE_CACHE_KEY = 'pageportals:ttsBestVoice';
+const RATE_KEY = 'pageportals:ttsRate';
 const WPM = 220;
 
 type TtsStartMode = 'top' | 'here' | 'last';
@@ -265,6 +265,11 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [narrationVoices, setNarrationVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState<string>('auto');
+  const [ttsRate, setTtsRate] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0.95;
+    const saved = localStorage.getItem(RATE_KEY);
+    return saved ? parseFloat(saved) : 0.95;
+  });
   const [tocEntries, setTocEntries] = useState<TocEntry[]>([]);
   const [tocOpen, setTocOpen] = useState(false);
   
@@ -503,33 +508,46 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     }
 
     const processedText = preprocessTextForSpeech(block.text);
+    // Split into sentence-level chunks for natural pacing
+    const sentences = splitIntoSentences(processedText);
+    let sentenceIndex = 0;
 
-    const utterance = new SpeechSynthesisUtterance(processedText);
-    // Slightly slower rate for better comprehension
-    utterance.rate = 0.95;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-
-    const voice = getSelectedVoice();
-    if (voice) {
-      utterance.voice = voice;
-    }
-
-    utterance.onend = () => {
-      // Shorter gap between blocks for smoother flow
-      setTimeout(() => {
-        speakBlock(index + 1);
-      }, 80);
-    };
-    utterance.onerror = (e) => {
-      if (e.error !== 'interrupted') {
-        setTtsState('idle');
-        clearHighlight();
+    const speakNextSentence = () => {
+      if (sentenceIndex >= sentences.length) {
+        // Done with this block, move to next with a brief pause
+        setTimeout(() => {
+          speakBlock(index + 1);
+        }, 120);
+        return;
       }
+
+      const utterance = new SpeechSynthesisUtterance(sentences[sentenceIndex]);
+      utterance.rate = ttsRate;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+
+      const voice = getSelectedVoice();
+      if (voice) {
+        utterance.voice = voice;
+      }
+
+      utterance.onend = () => {
+        sentenceIndex++;
+        // Tiny gap between sentences for natural pacing
+        setTimeout(speakNextSentence, 40);
+      };
+      utterance.onerror = (e) => {
+        if (e.error !== 'interrupted') {
+          setTtsState('idle');
+          clearHighlight();
+        }
+      };
+
+      window.speechSynthesis.speak(utterance);
     };
 
-    window.speechSynthesis.speak(utterance);
-  }, [autoScrollToBlock, clearHighlight, getSelectedVoice, highlightBlock, slug]);
+    speakNextSentence();
+  }, [autoScrollToBlock, clearHighlight, getSelectedVoice, highlightBlock, slug, ttsRate]);
 
   const getStartIndex = useCallback((): number => {
     switch (startMode) {
@@ -590,6 +608,12 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     } else {
       localStorage.setItem(VOICE_KEY, voiceName);
     }
+  }, []);
+
+  const handleRateChange = useCallback((newRate: number) => {
+    const clamped = Math.max(0.5, Math.min(1.5, newRate));
+    setTtsRate(clamped);
+    localStorage.setItem(RATE_KEY, String(clamped));
   }, []);
 
   const handleChapterClick = useCallback((id: string) => {
@@ -892,6 +916,31 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+
+            {/* Speed control - show when idle or playing */}
+            {(ttsState === 'idle' || ttsState === 'playing' || ttsState === 'paused') && (
+              <div className="hidden sm:flex items-center gap-1">
+                <button
+                  onClick={() => handleRateChange(ttsRate - 0.1)}
+                  className={btnClass}
+                  title="Slower"
+                  disabled={ttsRate <= 0.5}
+                >
+                  <Minus size={10} />
+                </button>
+                <span className="text-xs text-muted-foreground w-10 text-center font-mono">
+                  {ttsRate.toFixed(1)}x
+                </span>
+                <button
+                  onClick={() => handleRateChange(ttsRate + 0.1)}
+                  className={btnClass}
+                  title="Faster"
+                  disabled={ttsRate >= 1.5}
+                >
+                  <Plus size={10} />
+                </button>
               </div>
             )}
 

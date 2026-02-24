@@ -58,7 +58,7 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
           observer.disconnect();
         }
       },
-      { rootMargin: '200px' }
+      { rootMargin: '600px' }
     );
 
     if (cardRef.current) {
