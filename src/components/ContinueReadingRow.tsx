@@ -139,6 +139,7 @@ export function ContinueReadingRow({ stories }: ContinueReadingRowProps) {
                   alt={story.title}
                   className="w-full h-full object-cover"
                   loading="lazy"
+                  decoding="async"
                 />
 
                 {/* Gradient overlay */}
