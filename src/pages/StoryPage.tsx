@@ -112,8 +112,10 @@ export default function StoryPage() {
   const [contentReady, setContentReady] = useState(false);
   const [progressPct, setProgressPct] = useState(0);
   const [bottomBarCollapsed, setBottomBarCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem('pageportals:readerBottomCollapsed') === 'true';
+    if (typeof window === 'undefined') return true;
+    const saved = localStorage.getItem('pageportals:readerBottomCollapsed');
+    // Default to collapsed so reader gets maximum space
+    return saved === null ? true : saved === 'true';
   });
 
   // Real scroll container
