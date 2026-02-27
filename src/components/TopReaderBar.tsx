@@ -267,15 +267,16 @@ function escapeRegExp(string: string): string {
 export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, progressPct = 0 }: TopReaderBarProps) {
   const [ttsSupported, setTtsSupported] = useState(false);
   const [ttsState, setTtsState] = useState<'idle' | 'playing' | 'paused'>('idle');
+  const [ttsProgress, setTtsProgress] = useState<{ current: number; total: number } | null>(null);
   const [startMode, setStartMode] = useState<TtsStartMode>('top');
   const [savedTtsIndex, setSavedTtsIndex] = useState<number | null>(null);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [narrationVoices, setNarrationVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState<string>('auto');
   const [ttsRate, setTtsRate] = useState<number>(() => {
-    if (typeof window === 'undefined') return 0.95;
+    if (typeof window === 'undefined') return 1.0;
     const saved = localStorage.getItem(RATE_KEY);
-    return saved ? parseFloat(saved) : 0.95;
+    return saved ? parseFloat(saved) : 1.0;
   });
   const [tocEntries, setTocEntries] = useState<TocEntry[]>([]);
   const [tocOpen, setTocOpen] = useState(false);
@@ -499,6 +500,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     const blocks = blocksRef.current;
     if (index >= blocks.length) {
       setTtsState('idle');
+      setTtsProgress(null);
       currentIndexRef.current = 0;
       clearHighlight();
       return;
@@ -506,6 +508,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
 
     const block = blocks[index];
     currentIndexRef.current = index;
+    setTtsProgress({ current: index + 1, total: blocks.length });
 
     highlightBlock(block.el);
     autoScrollToBlock(block.el);
@@ -626,6 +629,7 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
   const handleTtsStop = useCallback(() => {
     window.speechSynthesis.cancel();
     setTtsState('idle');
+    setTtsProgress(null);
     currentIndexRef.current = 0;
     clearHighlight();
   }, [clearHighlight]);
@@ -644,6 +648,38 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
     setTtsRate(clamped);
     localStorage.setItem(RATE_KEY, String(clamped));
   }, []);
+
+  // Keyboard shortcuts for TTS and search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+
+      if (e.code === 'Space' && ttsSupported && ttsState !== 'idle') {
+        e.preventDefault();
+        if (ttsState === 'playing') handleTtsPause();
+        else if (ttsState === 'paused') handleTtsPlay();
+      }
+
+      if (e.key === 'Escape' && ttsState !== 'idle') {
+        e.preventDefault();
+        handleTtsStop();
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+
+      if (ttsState !== 'idle' && e.shiftKey) {
+        if (e.key === 'ArrowUp') { e.preventDefault(); handleRateChange(ttsRate + 0.1); }
+        if (e.key === 'ArrowDown') { e.preventDefault(); handleRateChange(ttsRate - 0.1); }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [ttsSupported, ttsState, handleTtsPlay, handleTtsPause, handleTtsStop, handleRateChange, ttsRate]);
 
   const handleChapterClick = useCallback((id: string) => {
     const heading = contentRef.current?.querySelector(`#${id}`) as HTMLElement;
@@ -1033,17 +1069,22 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
             )}
             {ttsState === 'playing' && (
               <>
+                {ttsProgress && (
+                  <span className="text-[10px] text-muted-foreground font-mono hidden sm:inline">
+                    {ttsProgress.current}/{ttsProgress.total}
+                  </span>
+                )}
                 <button
                   onClick={handleTtsPause}
                   className={activeBtnClass}
-                  title="Pause"
+                  title="Pause (Space)"
                 >
                   <Pause size={14} />
                 </button>
                 <button
                   onClick={handleTtsStop}
                   className={btnClass}
-                  title="Stop"
+                  title="Stop (Esc)"
                 >
                   <Square size={14} />
                 </button>
@@ -1051,17 +1092,22 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
             )}
             {ttsState === 'paused' && (
               <>
+                {ttsProgress && (
+                  <span className="text-[10px] text-muted-foreground font-mono hidden sm:inline">
+                    {ttsProgress.current}/{ttsProgress.total}
+                  </span>
+                )}
                 <button
                   onClick={handleTtsPlay}
                   className={btnClass}
-                  title="Resume"
+                  title="Resume (Space)"
                 >
                   <Play size={14} />
                 </button>
                 <button
                   onClick={handleTtsStop}
                   className={btnClass}
-                  title="Stop"
+                  title="Stop (Esc)"
                 >
                   <Square size={14} />
                 </button>

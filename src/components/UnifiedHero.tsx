@@ -36,6 +36,8 @@ export function UnifiedHero({ story }: UnifiedHeroProps) {
             src={imagePath}
             alt={story.title}
             loading="eager"
+            decoding="async"
+            fetchPriority="high"
             className="w-full h-full object-cover scale-105"
           />
           {/* Lighter gradient overlays - let more art show through */}

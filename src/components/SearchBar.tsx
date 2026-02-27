@@ -38,8 +38,23 @@ export function SearchBar({ stories }: SearchBarProps) {
       }
     };
 
+    // "/" keyboard shortcut to focus search
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        inputRef.current?.focus();
+        setIsOpen(true);
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -63,7 +78,7 @@ export function SearchBar({ stories }: SearchBarProps) {
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder="Search stories, genres, tags..."
+          placeholder='Search stories, genres, tags... (press "/")'
           className="search-input pl-11 pr-10"
           aria-label="Search stories"
         />
