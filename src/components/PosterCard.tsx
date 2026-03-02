@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Play } from 'lucide-react';
+import { Play, Clock } from 'lucide-react';
 import { StoryMeta } from '@/types/story';
 
 interface PosterCardProps {
@@ -11,12 +11,10 @@ interface PosterCardProps {
 
 const BASE_PATH = import.meta.env.BASE_URL || '/';
 
-// Detect touch device
 const getIsTouch = () =>
   typeof window !== 'undefined' &&
   window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 
-// Detect desktop with proper hover capability
 const getCanHover = () =>
   typeof window !== 'undefined' &&
   window.matchMedia('(hover: hover) and (pointer: fine)').matches;
@@ -49,7 +47,7 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
       : `${BASE_PATH}stories/${story.slug}/${story.posterVideo}`
     : null;
 
-  // Intersection observer for visibility (lazy loading)
+  // Intersection observer for visibility
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -60,15 +58,10 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
       },
       { rootMargin: '600px' }
     );
-
-    if (cardRef.current) {
-      observer.observe(cardRef.current);
-    }
-
+    if (cardRef.current) observer.observe(cardRef.current);
     return () => observer.disconnect();
   }, []);
 
-  // Stop preview function
   const stopPreview = useCallback(() => {
     setIsPreviewing(false);
     if (videoRef.current) {
@@ -81,41 +74,28 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
     }
   }, []);
 
-  // Listen for other cards opening preview (only one at a time)
   useEffect(() => {
     const handleOtherPreview = (e: Event) => {
       const customEvent = e as CustomEvent<{ slug: string }>;
-      if (customEvent.detail.slug !== slugRef.current && isPreviewing) {
-        stopPreview();
-      }
+      if (customEvent.detail.slug !== slugRef.current && isPreviewing) stopPreview();
     };
-
     window.addEventListener('pageportals:preview:open', handleOtherPreview);
     return () => window.removeEventListener('pageportals:preview:open', handleOtherPreview);
   }, [isPreviewing, stopPreview]);
 
-  // Cancel preview on scroll
   useEffect(() => {
     if (!isPreviewing) return;
-
     const handleScroll = () => stopPreview();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [isPreviewing, stopPreview]);
 
-  // Cancel preview on outside click
   useEffect(() => {
     if (!isPreviewing) return;
-
     const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
-      if (document.querySelector('[role="dialog"][data-state="open"], [data-radix-dialog-content], [data-radix-alert-dialog-content]')) {
-        return;
-      }
-      if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
-        stopPreview();
-      }
+      if (document.querySelector('[role="dialog"][data-state="open"]')) return;
+      if (cardRef.current && !cardRef.current.contains(e.target as Node)) stopPreview();
     };
-
     document.addEventListener('click', handleOutsideClick, { capture: true });
     document.addEventListener('touchstart', handleOutsideClick, { capture: true });
     return () => {
@@ -124,48 +104,19 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
     };
   }, [isPreviewing, stopPreview]);
 
-  // Load video src ONLY when hovered/previewing AND visible - performance optimization
   useEffect(() => {
     if (!videoPath || !isVisible) return;
-    
-    const shouldLoadVideo = isHovered || isPreviewing;
-    
-    if (shouldLoadVideo && !videoReady) {
-      setVideoReady(true);
-    }
+    if ((isHovered || isPreviewing) && !videoReady) setVideoReady(true);
   }, [isHovered, isPreviewing, isVisible, videoPath, videoReady]);
 
-  // Handle video play/pause on hover (desktop only with proper hover capability)
   useEffect(() => {
     if (!videoRef.current || !story.posterVideo || !videoReady) return;
-    
-    // Only apply hover behavior on devices that support hover
-    const canHover = getCanHover();
-    if (!canHover) return;
-
+    if (!getCanHover()) return;
     const video = videoRef.current;
-    
     if (isHovered && isVisible) {
-      // Ensure video is ready to play
-      const attemptPlay = () => {
-        video.play().catch((err) => {
-          // If play fails, retry once on canplay event
-          if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
-            const retryPlay = () => {
-              video.play().catch(() => {});
-              video.removeEventListener('canplay', retryPlay);
-            };
-            video.addEventListener('canplay', retryPlay, { once: true });
-          }
-        });
-      };
-      
-      // If video is ready, play immediately; otherwise wait for loadeddata
-      if (video.readyState >= 2) {
-        attemptPlay();
-      } else {
-        video.addEventListener('loadeddata', attemptPlay, { once: true });
-      }
+      const attemptPlay = () => { video.play().catch(() => {}); };
+      if (video.readyState >= 2) attemptPlay();
+      else video.addEventListener('loadeddata', attemptPlay, { once: true });
     } else {
       video.pause();
       video.currentTime = 0;
@@ -173,19 +124,13 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
   }, [isHovered, isVisible, story.posterVideo, videoReady]);
 
   const handleClick = (e: React.MouseEvent) => {
-    const isTouch = getIsTouch();
-
-    if (isTouch && videoPath) {
+    if (getIsTouch() && videoPath) {
       if (!isPreviewing) {
         e.preventDefault();
         e.stopPropagation();
         setIsPreviewing(true);
         setVideoReady(true);
-
-        window.dispatchEvent(
-          new CustomEvent('pageportals:preview:open', { detail: { slug: story.slug } })
-        );
-
+        window.dispatchEvent(new CustomEvent('pageportals:preview:open', { detail: { slug: story.slug } }));
         requestAnimationFrame(() => {
           const v = videoRef.current;
           if (!v) return;
@@ -193,28 +138,14 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
           (v as any).playsInline = true;
           v.play().catch(() => {});
         });
-
-        previewTimeoutRef.current = window.setTimeout(() => {
-          stopPreview();
-        }, 4000);
-
+        previewTimeoutRef.current = window.setTimeout(() => stopPreview(), 4000);
         return;
       }
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      navigate(`/story/${story.slug}`);
-    }
-  };
-
   useEffect(() => {
-    return () => {
-      if (previewTimeoutRef.current) {
-        clearTimeout(previewTimeoutRef.current);
-      }
-    };
+    return () => { if (previewTimeoutRef.current) clearTimeout(previewTimeoutRef.current); };
   }, []);
 
   const showOverlay = isHovered || isPreviewing;
@@ -224,7 +155,7 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
       to={`/story/${story.slug}`}
       className="block outline-none group"
       onClick={handleClick}
-      onKeyDown={handleKeyDown}
+      onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/story/${story.slug}`); }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onFocus={() => setIsHovered(true)}
@@ -235,26 +166,23 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
         ref={cardRef}
         className={`poster-card ${sizeClasses[size]} relative cursor-pointer group/card`}
       >
-        {/* Background Image - lazy loaded with decoding async */}
+        {/* Image */}
         {isVisible && (
           <img
             src={imagePath}
             alt={story.title}
             loading={priority ? 'eager' : 'lazy'}
             decoding="async"
-            className="absolute inset-0 w-full h-full object-cover transition-all duration-300 group-hover/card:scale-105 group-hover/card:saturate-110"
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 ease-out group-hover/card:scale-110"
           />
         )}
 
-        {/* Video Preview - ONLY mount when needed for performance */}
+        {/* Video Preview */}
         {videoPath && videoReady && (
           <video
             ref={videoRef}
             src={videoPath}
-            muted
-            loop
-            playsInline
-            preload="metadata"
+            muted loop playsInline preload="metadata"
             onLoadedData={() => setVideoLoaded(true)}
             onCanPlay={() => setVideoLoaded(true)}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
@@ -263,44 +191,49 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
           />
         )}
 
-        {/* Reduced Gradient Overlay - less blocking, more art visible */}
-        <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-80 group-hover/card:opacity-60 transition-opacity duration-300" />
+        {/* Gradient - more cinematic */}
+        <div className={`absolute inset-0 transition-opacity duration-500 ${
+          showOverlay 
+            ? 'bg-gradient-to-t from-background via-background/60 to-background/20 opacity-90' 
+            : 'bg-gradient-to-t from-background/80 via-transparent to-transparent opacity-100'
+        }`} />
 
-        {/* Content Overlay */}
-        <div
-          className={`absolute inset-0 flex flex-col justify-end p-3 transition-all duration-300 ${
-            showOverlay ? 'bg-background/40' : ''
-          }`}
-        >
-          {/* Genre Chip */}
-          <span className="genre-chip self-start mb-auto mt-2 opacity-90">{story.genre}</span>
+        {/* Content */}
+        <div className="absolute inset-0 flex flex-col justify-end p-3">
+          {/* Genre Chip - top */}
+          <span className="genre-chip self-start mb-auto mt-2 opacity-80 text-[10px]">{story.genre}</span>
 
-          {/* Title - with subtle text shadow for readability */}
-          <h3 className="font-display text-sm md:text-base font-semibold text-foreground line-clamp-2 mb-1 drop-shadow-md">
+          {/* Title */}
+          <h3 className="font-display text-sm md:text-base font-semibold text-foreground line-clamp-2 mb-1 drop-shadow-lg">
             {story.title}
           </h3>
 
-          {/* Synopsis (on hover/preview) */}
-          <p
-            className={`text-xs text-foreground/80 line-clamp-3 transition-all duration-300 drop-shadow-sm ${
-              showOverlay ? 'opacity-100 max-h-20' : 'opacity-0 max-h-0'
-            }`}
-          >
+          {/* Reading time - always visible */}
+          {story.readingTimeMins && (
+            <div className={`flex items-center gap-1 text-[10px] text-foreground/50 mb-1 transition-opacity duration-300 ${showOverlay ? 'opacity-0 h-0' : 'opacity-100'}`}>
+              <Clock size={10} />
+              <span>{story.readingTimeMins} min</span>
+            </div>
+          )}
+
+          {/* Synopsis (on hover) */}
+          <p className={`text-xs text-foreground/70 line-clamp-3 transition-all duration-300 drop-shadow-sm ${
+            showOverlay ? 'opacity-100 max-h-20 mb-2' : 'opacity-0 max-h-0'
+          }`}>
             {story.synopsis}
           </p>
 
-          {/* CTA Button (on hover/preview) */}
-          <div
-            className={`flex items-center gap-2 mt-2 transition-all duration-300 ${
-              showOverlay ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-            }`}
-          >
-            <span className="inline-flex items-center gap-1 px-3 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full shadow-lg">
+          {/* CTA (on hover) */}
+          <div className={`flex items-center gap-2 transition-all duration-300 ${
+            showOverlay ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
+          }`}>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-semibold rounded-full shadow-lg shadow-primary/20">
               <Play size={12} fill="currentColor" />
               {isPreviewing ? 'Tap to Read' : 'Read'}
             </span>
             {story.readingTimeMins && (
-              <span className="text-xs text-foreground/70 drop-shadow-sm">
+              <span className="text-[10px] text-foreground/60 flex items-center gap-1">
+                <Clock size={10} />
                 {story.readingTimeMins} min
               </span>
             )}
@@ -309,13 +242,13 @@ export function PosterCard({ story, size = 'medium', priority = false }: PosterC
 
         {/* Video indicator */}
         {story.posterVideo && !isPreviewing && (
-          <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-background/70 backdrop-blur-sm flex items-center justify-center shadow-md">
-            <Play size={12} className="text-primary" fill="currentColor" />
+          <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-background/60 backdrop-blur-sm flex items-center justify-center">
+            <Play size={10} className="text-primary" fill="currentColor" />
           </div>
         )}
 
-        {/* Hover glow effect */}
-        <div className="absolute inset-0 rounded-lg opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 pointer-events-none ring-1 ring-primary/30 shadow-[0_0_20px_rgba(245,158,11,0.15)]" />
+        {/* Hover border glow */}
+        <div className="absolute inset-0 rounded-lg opacity-0 group-hover/card:opacity-100 transition-opacity duration-500 pointer-events-none ring-1 ring-primary/20" />
       </div>
     </Link>
   );

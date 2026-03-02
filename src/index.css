@@ -313,6 +313,11 @@ mark.search-hit-active {
     }
   }
 
+  @keyframes heroZoom {
+    from { transform: scale(1.05); }
+    to { transform: scale(1.12); }
+  }
+
   /* Stagger animation delays */
   .delay-100 { animation-delay: 100ms; }
   .delay-200 { animation-delay: 200ms; }

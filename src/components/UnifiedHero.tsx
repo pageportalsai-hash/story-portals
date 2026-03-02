@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, HelpCircle, Info } from 'lucide-react';
+import { Play, HelpCircle, Info, ChevronDown } from 'lucide-react';
 import { StoryMeta } from '@/types/story';
 import { HowItWorksModal } from './HowItWorksModal';
 
@@ -26,11 +26,11 @@ export function UnifiedHero({ story }: UnifiedHeroProps) {
 
   return (
     <>
-      {/* Spacer for fixed header - accounts for header height + safe area */}
+      {/* Spacer for fixed header */}
       <div className="h-[calc(3.5rem+env(safe-area-inset-top)+3rem)] md:h-[calc(4rem+env(safe-area-inset-top))]" />
       
       <section className="relative min-h-[calc(90vh-7rem)] md:min-h-[calc(100vh-4rem)] w-full overflow-hidden -mt-[calc(3.5rem+env(safe-area-inset-top)+3rem)] md:-mt-[calc(4rem+env(safe-area-inset-top))]">
-        {/* Background Image - brighter, more visible */}
+        {/* Background Image */}
         <div className="absolute inset-0">
           <img
             src={imagePath}
@@ -38,38 +38,45 @@ export function UnifiedHero({ story }: UnifiedHeroProps) {
             loading="eager"
             decoding="async"
             fetchPriority="high"
-            className="w-full h-full object-cover scale-105"
+            className="w-full h-full object-cover scale-105 animate-[heroZoom_20s_ease-in-out_infinite_alternate]"
           />
-          {/* Lighter gradient overlays - let more art show through */}
-          <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/50 to-background" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background/40 via-transparent to-background/40" />
+          {/* Cinematic gradient overlays */}
+          <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/40 to-background" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background/50 via-transparent to-background/50" />
+          {/* Subtle vignette */}
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 50%, hsl(var(--background) / 0.6) 100%)' }} />
         </div>
 
-        {/* Content Container - extra top padding on mobile for header+search */}
+        {/* Content Container */}
         <div className="relative h-full flex flex-col justify-center items-center pt-[calc(6rem+env(safe-area-inset-top))] md:pt-24 px-4 md:px-12">
-          {/* Intro Block - Centered Primary Hero */}
-          <div className="max-w-3xl text-center mb-16 md:mb-20">
-            <h2 className="font-display text-3xl md:text-5xl lg:text-6xl font-bold text-foreground mb-6 animate-fade-in">
-              Step into the mind of the machine.
+          {/* Intro Block */}
+          <div className="max-w-3xl text-center mb-12 md:mb-16">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-medium mb-6 animate-fade-in">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              AI-Generated Stories
+            </div>
+
+            <h2 className="font-display text-4xl md:text-5xl lg:text-7xl font-bold text-foreground mb-6 animate-fade-in leading-[1.1] tracking-tight">
+              Step into the mind
+              <span className="block text-primary">of the machine.</span>
             </h2>
 
-            <p className="text-foreground/80 text-lg md:text-xl mb-8 leading-relaxed animate-slide-up" style={{ animationDelay: '100ms' }}>
-              PagePortals is a robot-generated library of sci-fi, fantasy, and noir novellas—every cover is a portal to another world. 
-              Discover beauty, horror, and wonder crafted by artificial minds. 
-              As you read, you may find yourself questioning: is this sentience, or simply exquisite glitches?
+            <p className="text-foreground/70 text-base md:text-lg mb-8 leading-relaxed animate-slide-up max-w-2xl mx-auto" style={{ animationDelay: '100ms' }}>
+              A robot-generated library of sci-fi, fantasy, and noir novellas—every cover is a portal to another world. 
+              Discover beauty, horror, and wonder crafted by artificial minds.
             </p>
 
             <div className="flex flex-wrap justify-center gap-3 animate-slide-up" style={{ animationDelay: '200ms' }}>
               <button
                 onClick={scrollToTrending}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-full hover:bg-primary/90 transition-all hover:scale-105 hover:shadow-[0_0_30px_hsl(var(--primary)/0.4)] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
               >
                 <Play size={18} fill="currentColor" />
                 Start Reading
               </button>
               <button
                 onClick={() => setHowItWorksOpen(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-foreground/10 backdrop-blur-sm text-foreground font-semibold rounded-lg hover:bg-foreground/20 transition-colors border border-foreground/20 focus:outline-none focus:ring-2 focus:ring-foreground/50 focus:ring-offset-2 focus:ring-offset-background"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-foreground/10 backdrop-blur-sm text-foreground font-semibold rounded-full hover:bg-foreground/20 transition-all border border-foreground/20 focus:outline-none focus:ring-2 focus:ring-foreground/50 focus:ring-offset-2 focus:ring-offset-background"
               >
                 <HelpCircle size={18} />
                 How it works
@@ -77,74 +84,70 @@ export function UnifiedHero({ story }: UnifiedHeroProps) {
             </div>
           </div>
 
-          {/* Featured Story Block - Secondary, Smaller */}
-          <div className="w-full max-w-5xl pb-12 md:pb-16 animate-fade-in" style={{ animationDelay: '300ms' }}>
-            <div className="bg-foreground/5 backdrop-blur-md rounded-xl p-6 md:p-8 border border-foreground/10">
-              {/* Featured Label */}
-              <span className="inline-flex items-center gap-2 text-primary font-medium text-xs uppercase tracking-wider mb-3">
-                <span className="w-6 h-0.5 bg-primary" />
-                Featured Story
-              </span>
-
-              {/* Title - Smaller than intro */}
-              <h3 className="font-display text-2xl md:text-3xl lg:text-4xl font-bold text-foreground mb-3">
-                {story.title}
-              </h3>
-
-              {/* Meta Info */}
-              <div className="flex flex-wrap items-center gap-3 mb-3">
-                <span className="genre-chip text-xs">{story.genre}</span>
-                {story.year && (
-                  <span className="text-foreground/50 text-sm">{story.year}</span>
-                )}
-                {story.readingTimeMins && (
-                  <span className="text-foreground/50 text-sm">
-                    {story.readingTimeMins} min read
+          {/* Featured Story Block */}
+          <div className="w-full max-w-4xl pb-12 md:pb-16 animate-fade-in" style={{ animationDelay: '300ms' }}>
+            <div className="bg-foreground/5 backdrop-blur-xl rounded-2xl p-5 md:p-8 border border-foreground/10 hover:border-primary/20 transition-colors duration-500">
+              <div className="flex flex-col md:flex-row md:items-start gap-5">
+                {/* Left: Info */}
+                <div className="flex-1 min-w-0">
+                  <span className="inline-flex items-center gap-2 text-primary font-medium text-xs uppercase tracking-wider mb-2">
+                    <span className="w-5 h-0.5 bg-primary rounded-full" />
+                    Featured Story
                   </span>
-                )}
-                {story.author && (
-                  <span className="text-foreground/50 text-sm">
-                    by {story.author}
-                  </span>
-                )}
-              </div>
 
-              {/* Synopsis */}
-              <p className="text-foreground/60 text-sm md:text-base max-w-2xl mb-5 line-clamp-2">
-                {story.synopsis}
-              </p>
+                  <h3 className="font-display text-xl md:text-2xl lg:text-3xl font-bold text-foreground mb-2 line-clamp-2">
+                    {story.title}
+                  </h3>
 
-              {/* CTAs - Smaller buttons */}
-              <div className="flex flex-wrap gap-3">
-                <Link
-                  to={`/story/${story.slug}`}
-                  className="inline-flex items-center gap-2 px-5 py-2 bg-primary text-primary-foreground font-semibold text-sm rounded-lg hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
-                >
-                  <Play size={16} fill="currentColor" />
-                  Read Now
-                </Link>
-                <Link
-                  to={`/story/${story.slug}`}
-                  className="inline-flex items-center gap-2 px-5 py-2 bg-foreground/10 text-foreground font-semibold text-sm rounded-lg hover:bg-foreground/20 transition-colors border border-foreground/20 focus:outline-none focus:ring-2 focus:ring-foreground/50 focus:ring-offset-2 focus:ring-offset-background"
-                >
-                  <Info size={16} />
-                  More Info
-                </Link>
-              </div>
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <span className="genre-chip text-xs">{story.genre}</span>
+                    {story.year && <span className="text-foreground/40 text-xs">{story.year}</span>}
+                    {story.readingTimeMins && <span className="text-foreground/40 text-xs">{story.readingTimeMins} min read</span>}
+                  </div>
 
-              {/* Tags */}
-              <div className="flex flex-wrap gap-2 mt-4">
-                {story.tags.slice(0, 5).map((tag) => (
-                  <span
-                    key={tag}
-                    className="text-xs text-foreground/50 bg-foreground/5 px-2 py-1 rounded"
+                  <p className="text-foreground/50 text-sm line-clamp-2 mb-4">
+                    {story.synopsis}
+                  </p>
+
+                  {/* Tags */}
+                  <div className="flex flex-wrap gap-1.5 mb-4 md:mb-0">
+                    {story.tags.slice(0, 4).map((tag) => (
+                      <span key={tag} className="text-[10px] text-foreground/40 bg-foreground/5 px-2 py-0.5 rounded-full">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right: CTAs */}
+                <div className="flex md:flex-col gap-2 md:items-end flex-shrink-0">
+                  <Link
+                    to={`/story/${story.slug}`}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-semibold text-sm rounded-full hover:bg-primary/90 transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary"
                   >
-                    #{tag}
-                  </span>
-                ))}
+                    <Play size={14} fill="currentColor" />
+                    Read Now
+                  </Link>
+                  <Link
+                    to={`/story/${story.slug}`}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-foreground/10 text-foreground font-medium text-sm rounded-full hover:bg-foreground/20 transition-colors border border-foreground/15"
+                  >
+                    <Info size={14} />
+                    Details
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
+
+          {/* Scroll indicator */}
+          <button
+            onClick={scrollToTrending}
+            className="absolute bottom-6 left-1/2 -translate-x-1/2 animate-bounce text-foreground/30 hover:text-foreground/60 transition-colors"
+            aria-label="Scroll to stories"
+          >
+            <ChevronDown size={28} />
+          </button>
         </div>
       </section>
 

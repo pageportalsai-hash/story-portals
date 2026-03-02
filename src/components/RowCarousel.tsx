@@ -11,7 +11,6 @@ interface RowCarouselProps {
   subtitle?: string;
 }
 
-// Skeleton placeholder for inactive rows
 function RowSkeleton({ size = 'medium' }: { size?: 'small' | 'medium' | 'large' }) {
   const sizeClasses = {
     small: 'w-36 h-52 md:w-40 md:h-56',
@@ -22,7 +21,7 @@ function RowSkeleton({ size = 'medium' }: { size?: 'small' | 'medium' | 'large' 
   return (
     <div className="flex gap-3 px-4 md:px-12">
       {[...Array(6)].map((_, i) => (
-        <Skeleton key={i} className={`${sizeClasses[size]} rounded-lg flex-shrink-0`} />
+        <Skeleton key={i} className={`${sizeClasses[size]} rounded-lg flex-shrink-0 animate-pulse`} />
       ))}
     </div>
   );
@@ -35,7 +34,6 @@ export function RowCarousel({ title, stories, size = 'medium', subtitle }: RowCa
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [isActive, setIsActive] = useState(false);
 
-  // Activate row when near viewport (progressive loading)
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -44,13 +42,9 @@ export function RowCarousel({ title, stories, size = 'medium', subtitle }: RowCa
           observer.disconnect();
         }
       },
-      { rootMargin: '800px' } // Activate 800px before entering viewport
+      { rootMargin: '800px' }
     );
-
-    if (rowRef.current) {
-      observer.observe(rowRef.current);
-    }
-
+    if (rowRef.current) observer.observe(rowRef.current);
     return () => observer.disconnect();
   }, []);
 
@@ -63,7 +57,6 @@ export function RowCarousel({ title, stories, size = 'medium', subtitle }: RowCa
 
   useEffect(() => {
     if (!isActive) return;
-    
     checkScrollButtons();
     const scrollEl = scrollRef.current;
     if (scrollEl) {
@@ -71,9 +64,7 @@ export function RowCarousel({ title, stories, size = 'medium', subtitle }: RowCa
       window.addEventListener('resize', checkScrollButtons);
     }
     return () => {
-      if (scrollEl) {
-        scrollEl.removeEventListener('scroll', checkScrollButtons);
-      }
+      if (scrollEl) scrollEl.removeEventListener('scroll', checkScrollButtons);
       window.removeEventListener('resize', checkScrollButtons);
     };
   }, [stories, isActive]);
@@ -91,37 +82,42 @@ export function RowCarousel({ title, stories, size = 'medium', subtitle }: RowCa
 
   return (
     <section ref={rowRef} className="relative py-4 md:py-6">
-      {/* Section Title */}
-      <div className="flex items-baseline gap-3 mb-4 px-4 md:px-12">
+      {/* Section Title with accent line */}
+      <div className="flex items-center gap-3 mb-4 px-4 md:px-12">
+        <span className="w-1 h-6 rounded-full bg-primary" />
         <h2 className="font-display text-xl md:text-2xl font-semibold text-foreground">
           {title}
         </h2>
         {subtitle && (
-          <span className="text-sm text-muted-foreground">{subtitle}</span>
+          <span className="text-sm text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full">{subtitle}</span>
+        )}
+        {isActive && stories.length > 6 && (
+          <span className="text-xs text-muted-foreground/50 ml-auto hidden md:inline">
+            {stories.length} stories
+          </span>
         )}
       </div>
 
-      {/* Show skeleton until row is active */}
       {!isActive ? (
         <RowSkeleton size={size} />
       ) : (
-        /* Carousel Container */
         <div className="relative group">
-          {/* Left Chevron */}
+          {/* Left Chevron - improved visibility */}
           <button
             onClick={() => scroll('left')}
             disabled={!canScrollLeft}
-            className="carousel-chevron left-2 md:left-4 opacity-0 group-hover:opacity-100"
+            className="carousel-chevron left-1 md:left-3 opacity-0 group-hover:opacity-100 shadow-lg"
             aria-label="Scroll left"
           >
-            <ChevronLeft size={24} />
+            <ChevronLeft size={22} />
           </button>
 
-          {/* Scrollable Row */}
-          <div
-            ref={scrollRef}
-            className="carousel-row px-4 md:px-12"
-          >
+          {/* Left/Right edge fade indicators */}
+          {canScrollLeft && (
+            <div className="absolute left-0 top-0 bottom-4 w-12 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+          )}
+
+          <div ref={scrollRef} className="carousel-row px-4 md:px-12">
             {stories.map((story, index) => (
               <div key={story.slug} className="carousel-item">
                 <PosterCard story={story} size={size} priority={index < 4} />
@@ -129,14 +125,17 @@ export function RowCarousel({ title, stories, size = 'medium', subtitle }: RowCa
             ))}
           </div>
 
-          {/* Right Chevron */}
+          {canScrollRight && (
+            <div className="absolute right-0 top-0 bottom-4 w-12 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+          )}
+
           <button
             onClick={() => scroll('right')}
             disabled={!canScrollRight}
-            className="carousel-chevron right-2 md:right-4 opacity-0 group-hover:opacity-100"
+            className="carousel-chevron right-1 md:right-3 opacity-0 group-hover:opacity-100 shadow-lg"
             aria-label="Scroll right"
           >
-            <ChevronRight size={24} />
+            <ChevronRight size={22} />
           </button>
         </div>
       )}
