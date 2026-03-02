@@ -797,9 +797,9 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
   }, [settings.fontSize, onUpdate]);
 
   const btnClass =
-    'inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-md transition-colors bg-secondary/80 hover:bg-secondary text-secondary-foreground';
+    'inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg transition-all bg-secondary/80 hover:bg-secondary text-secondary-foreground hover:scale-105 active:scale-95';
   const activeBtnClass =
-    'inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs rounded-md transition-colors bg-primary text-primary-foreground';
+    'inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg transition-all bg-primary text-primary-foreground shadow-md shadow-primary/20';
   const startModeBtn = (mode: TtsStartMode) =>
     `inline-flex items-center justify-center gap-1 px-2 py-1 text-xs rounded transition-colors ${
       startMode === mode
@@ -1117,11 +1117,11 @@ export function TopReaderBar({ settings, onUpdate, contentRef, readerRef, slug, 
         )}
       </div>
 
-      {/* Voice quality hint - only show on desktop */}
+      {/* Voice quality hint - only show on desktop when idle */}
       {ttsSupported && ttsState === 'idle' && (
-        <div className="hidden md:block px-3 pb-1.5 -mt-0.5">
-          <p className="text-[10px] text-muted-foreground/50">
-            Tip: Edge or Safari often have the best narrator voices
+        <div className="hidden md:flex items-center gap-2 px-3 pb-1.5 -mt-0.5">
+          <p className="text-[10px] text-muted-foreground/40">
+            💡 Edge & Safari have the best narrator voices · Space to pause · Shift+↑↓ for speed
           </p>
         </div>
       )}
