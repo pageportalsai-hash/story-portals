@@ -6,7 +6,7 @@ import { ContinueReadingRow } from '@/components/ContinueReadingRow';
 import { RowCarousel } from '@/components/RowCarousel';
 import { Footer } from '@/components/Footer';
 import { LibraryToolsSection } from '@/components/LibraryToolsSection';
-import { Loader2 } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 import { StoryMeta } from '@/types/story';
 
 const LAST_READ_KEY = 'pageportals:lastRead';
@@ -236,9 +236,18 @@ const Index = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading library...</p>
+        <div className="flex flex-col items-center gap-6 animate-fade-in">
+          <div className="relative">
+            <BookOpen className="w-10 h-10 text-primary animate-pulse" />
+            <div className="absolute inset-0 blur-xl bg-primary/20 animate-pulse" />
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <h2 className="font-display text-lg text-foreground">PagePortals</h2>
+            <p className="text-sm text-muted-foreground">Loading your library...</p>
+          </div>
+          <div className="w-32 h-0.5 bg-muted rounded-full overflow-hidden">
+            <div className="h-full bg-primary rounded-full animate-[shimmer_1.5s_ease-in-out_infinite]" style={{ width: '40%' }} />
+          </div>
         </div>
       </div>
     );
