@@ -56,8 +56,10 @@ export function Header({ stories, showSearch = true }: HeaderProps) {
             </div>
           )}
 
-          {/* Story count badge */}
-          <div className="hidden md:flex items-center gap-2">
+          {/* Nav links */}
+          <div className="hidden md:flex items-center gap-4">
+            <Link to="/browse" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Browse</Link>
+            <Link to="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">About</Link>
             <span className="text-xs text-muted-foreground/60 bg-muted/30 px-2.5 py-1 rounded-full">
               {stories.length} stories
             </span>
