@@ -1,9 +1,8 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { BookOpen } from 'lucide-react';
 import { SearchBar } from './SearchBar';
 import { StoryMeta } from '@/types/story';
 import { useEffect, useState } from 'react';
-import { NavLink } from './NavLink';
 
 interface HeaderProps {
   stories: StoryMeta[];
