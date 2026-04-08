@@ -42,9 +42,15 @@ export function Footer({ storyCount }: FooterProps) {
               </div>
             </div>
 
-            {/* Copyright */}
-            <div className="text-xs text-muted-foreground/40">
-              © {new Date().getFullYear()} PagePortals
+            {/* Links + Copyright */}
+            <div className="flex flex-col items-center md:items-end gap-2">
+              <div className="flex items-center gap-4 text-xs">
+                <Link to="/browse" className="text-muted-foreground/60 hover:text-primary transition-colors">Browse All Stories</Link>
+                <Link to="/about" className="text-muted-foreground/60 hover:text-primary transition-colors">About</Link>
+              </div>
+              <div className="text-xs text-muted-foreground/40">
+                © {new Date().getFullYear()} PagePortals
+              </div>
             </div>
           </div>
         </div>

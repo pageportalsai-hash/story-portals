@@ -201,13 +201,17 @@ const Index = () => {
         s.genre.toLowerCase().includes('fiction')
     );
 
-    // Trending - stable shuffle per session
-    const trending = seededShuffle(stories, sessionSeed).slice(0, 12);
-
-    // New releases (sorted by year desc)
+    // New releases (sorted by year desc) — compute first for de-dup
     const newReleases = [...stories]
       .filter((s) => s.year)
       .sort((a, b) => (b.year || 0) - (a.year || 0))
+      .slice(0, 12);
+
+    const newReleaseSlugs = new Set(newReleases.map(s => s.slug));
+
+    // Trending - stable shuffle, excluding new releases
+    const trending = seededShuffle(stories, sessionSeed)
+      .filter(s => !newReleaseSlugs.has(s.slug))
       .slice(0, 12);
 
     // Short reads (<= 25 mins)
@@ -294,38 +298,40 @@ const Index = () => {
       {/* Content Rows - Above the fold (always render) */}
       <main className="relative z-10 pb-8">
         {/* Most Read - only show if user has history */}
-        {categories.mostRead.length > 0 && (
+        {categories.mostRead.length >= 4 && (
           <RowCarousel title="Most Read" stories={categories.mostRead} />
         )}
 
-        <div id="trending-now">
-          <RowCarousel title="Trending Now" stories={categories.trending} />
-        </div>
+        {categories.trending.length >= 4 && (
+          <div id="trending-now">
+            <RowCarousel title="Trending Now" stories={categories.trending} />
+          </div>
+        )}
 
         {/* Deferred rows - render after first paint for performance */}
         {showDeferredRows && (
           <>
-            {categories.newReleases.length > 0 && (
+            {categories.newReleases.length >= 4 && (
               <RowCarousel title="New Releases" stories={categories.newReleases} />
             )}
 
-            {categories.shortReads.length > 0 && (
+            {categories.shortReads.length >= 4 && (
               <RowCarousel title="Short Reads" stories={categories.shortReads} subtitle="Under 25 min" />
             )}
 
-            {categories.longReads.length > 0 && (
+            {categories.longReads.length >= 4 && (
               <RowCarousel title="Long Reads" stories={categories.longReads} subtitle="45+ min" />
             )}
 
-            {categories.sciFi.length > 0 && (
+            {categories.sciFi.length >= 4 && (
               <RowCarousel title="Science Fiction" stories={categories.sciFi} />
             )}
 
-            {categories.noir.length > 0 && (
+            {categories.noir.length >= 4 && (
               <RowCarousel title="Noir & Mystery" stories={categories.noir} />
             )}
 
-            {categories.literary.length > 0 && (
+            {categories.literary.length >= 4 && (
               <RowCarousel title="Literary Fiction" stories={categories.literary} />
             )}
 
