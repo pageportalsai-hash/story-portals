@@ -201,13 +201,17 @@ const Index = () => {
         s.genre.toLowerCase().includes('fiction')
     );
 
-    // Trending - stable shuffle per session
-    const trending = seededShuffle(stories, sessionSeed).slice(0, 12);
-
-    // New releases (sorted by year desc)
+    // New releases (sorted by year desc) — compute first for de-dup
     const newReleases = [...stories]
       .filter((s) => s.year)
       .sort((a, b) => (b.year || 0) - (a.year || 0))
+      .slice(0, 12);
+
+    const newReleaseSlugs = new Set(newReleases.map(s => s.slug));
+
+    // Trending - stable shuffle, excluding new releases
+    const trending = seededShuffle(stories, sessionSeed)
+      .filter(s => !newReleaseSlugs.has(s.slug))
       .slice(0, 12);
 
     // Short reads (<= 25 mins)
